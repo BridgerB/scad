@@ -28,6 +28,7 @@
     "vite": "^7.0.4"
   },
   "dependencies": {
+    "@google/model-viewer": "^4.1.0",
     "drizzle-orm": "^0.40.0",
     "postgres": "^3.4.5"
   }
