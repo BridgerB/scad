@@ -23,7 +23,7 @@
             <model-viewer
                 bind:this={modelViewer}
                 alt="3D Model Preview"
-                src="/models/house.glb"
+                src="/models/house/house.glb"
                 ar
                 environment-image="/environments/default.hdr"
                 poster="/models/poster.webp"
