@@ -53,6 +53,59 @@
 			</div>
 		{/each}
 	</div>
+
+	{#if data.pagination.totalPages > 1}
+		<div class="pagination">
+			<div class="pagination-info">
+				Showing {(data.pagination.currentPage - 1) * 25 + 1}-{Math.min(data.pagination.currentPage * 25, data.pagination.totalCount)} of {data.pagination.totalCount} results
+			</div>
+			
+			<div class="pagination-controls">
+				{#if data.pagination.currentPage > 1}
+					<a href="?{new URLSearchParams({ 
+						...(data.searchQuery && { search: data.searchQuery }), 
+						page: '1' 
+					}).toString()}" class="page-btn">First</a>
+				{/if}
+
+				{#if data.pagination.hasPrevPage}
+					<a href="?{new URLSearchParams({ 
+						...(data.searchQuery && { search: data.searchQuery }), 
+						page: String(data.pagination.currentPage - 1) 
+					}).toString()}" class="page-btn">← Previous</a>
+				{/if}
+
+				{#each Array.from({ length: Math.min(5, data.pagination.totalPages) }, (_, i) => {
+					const start = Math.max(1, data.pagination.currentPage - 2);
+					const end = Math.min(data.pagination.totalPages, start + 4);
+					return start + i;
+				}).filter(page => page <= data.pagination.totalPages) as pageNum}
+					{#if pageNum === data.pagination.currentPage}
+						<span class="page-btn current">{pageNum}</span>
+					{:else}
+						<a href="?{new URLSearchParams({ 
+							...(data.searchQuery && { search: data.searchQuery }), 
+							page: String(pageNum) 
+						}).toString()}" class="page-btn">{pageNum}</a>
+					{/if}
+				{/each}
+
+				{#if data.pagination.hasNextPage}
+					<a href="?{new URLSearchParams({ 
+						...(data.searchQuery && { search: data.searchQuery }), 
+						page: String(data.pagination.currentPage + 1) 
+					}).toString()}" class="page-btn">Next →</a>
+				{/if}
+
+				{#if data.pagination.currentPage < data.pagination.totalPages}
+					<a href="?{new URLSearchParams({ 
+						...(data.searchQuery && { search: data.searchQuery }), 
+						page: String(data.pagination.totalPages) 
+					}).toString()}" class="page-btn">Last</a>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -153,5 +206,58 @@
 		justify-content: space-between;
 		font-size: 0.8rem;
 		color: #888;
+	}
+
+	.pagination {
+		margin-top: 2rem;
+		text-align: center;
+	}
+
+	.pagination-info {
+		margin-bottom: 1rem;
+		color: #666;
+		font-size: 0.9rem;
+	}
+
+	.pagination-controls {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.page-btn {
+		padding: 0.5rem 1rem;
+		border: 1px solid #ddd;
+		background: white;
+		color: #333;
+		text-decoration: none;
+		border-radius: 4px;
+		font-size: 0.9rem;
+		transition: all 0.2s;
+	}
+
+	.page-btn:hover {
+		background: #f5f5f5;
+		border-color: #007acc;
+	}
+
+	.page-btn.current {
+		background: #007acc;
+		color: white;
+		border-color: #007acc;
+		cursor: default;
+	}
+
+	@media (max-width: 768px) {
+		.pagination-controls {
+			font-size: 0.8rem;
+		}
+		
+		.page-btn {
+			padding: 0.4rem 0.8rem;
+			font-size: 0.8rem;
+		}
 	}
 </style>
