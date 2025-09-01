@@ -143,9 +143,10 @@ export const actions: Actions = {
       // Create some sample users first
       const userIds = [];
       for (let i = 0; i < Math.min(5, count); i++) {
+        const timestamp = Date.now();
         const [user] = await db.insert(users).values({
-          username: `${randomChoice(sampleUsernames)}_${randomInt(100, 999)}`,
-          email: `user${i}@example.com`,
+          username: `${randomChoice(sampleUsernames)}_${randomInt(100, 999)}_${timestamp}`,
+          email: `user${i}_${timestamp}@example.com`,
         }).returning({ id: users.id });
         userIds.push(user.id);
       }
