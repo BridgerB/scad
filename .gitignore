@@ -23,3 +23,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 static/environments/default.hdr
 static/models/default.glb
+static/models/spiral.glb
+static/models/spiral.stl
+static/models/house.glb
+static/models/house.stl
