@@ -10,10 +10,6 @@
     let scadContent = data.scadContent;
     let isUpdating = false;
     let lastUpdate = '';
-    let debounceTimer;
-    
-    // Auto-save delay (milliseconds)
-    const DEBOUNCE_DELAY = 2000;
     
     onMount(async () => {
         if (browser) {
@@ -21,13 +17,6 @@
         }
     });
     
-    // Debounced auto-save function
-    function handleContentChange() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            updateModel();
-        }, DEBOUNCE_DELAY);
-    }
     
     // Manual update function
     async function updateModel() {
@@ -49,7 +38,7 @@
                 // Force reload the model viewer by updating the src with timestamp
                 const timestamp = Date.now();
                 if (modelViewer) {
-                    modelViewer.src = `/models/house/house.glb?t=${timestamp}`;
+                    modelViewer.src = `/models/generated/output.glb?t=${timestamp}`;
                 }
                 lastUpdate = new Date().toLocaleTimeString();
             } else {
@@ -64,11 +53,16 @@
         }
     }
     
+    // Reactive statement - updates model whenever scadContent changes
+    $: if (scadContent !== data.scadContent && scadContent.trim()) {
+        updateModel();
+    }
+
     // React to form updates
     $: if (form?.success) {
         const timestamp = Date.now();
         if (modelViewer) {
-            modelViewer.src = `/models/house/house.glb?t=${timestamp}`;
+            modelViewer.src = `/models/generated/output.glb?t=${timestamp}`;
         }
         lastUpdate = new Date().toLocaleTimeString();
     }
@@ -94,14 +88,6 @@
                     {:else}
                         <span class="status">Ready</span>
                     {/if}
-                    <button 
-                        type="button" 
-                        on:click={updateModel} 
-                        disabled={isUpdating}
-                        class="update-btn"
-                    >
-                        {isUpdating ? 'Updating...' : 'Update Model'}
-                    </button>
                 </div>
             </div>
             
@@ -109,7 +95,6 @@
                 <textarea 
                     name="scadContent"
                     bind:value={scadContent}
-                    on:input={handleContentChange}
                     class="code-editor"
                     placeholder="Enter your OpenSCAD code here..."
                     spellcheck="false"
@@ -140,7 +125,7 @@
                     <model-viewer
                         bind:this={modelViewer}
                         alt="OpenSCAD 3D Model Preview"
-                        src="/models/house/house.glb"
+                        src="/models/generated/output.glb"
                         ar
                         environment-image="/environments/default.hdr"
                         shadow-intensity="1"
@@ -211,6 +196,12 @@
         display: flex;
         align-items: center;
         gap: 1rem;
+    }
+
+    .editor-panel form {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
     }
 
 

@@ -9,10 +9,10 @@ import { parseOff } from "/home/bridger/git/openscad-playground/src/io/import_of
 import { exportGlb } from "/home/bridger/git/openscad-playground/src/io/export_glb.ts";
 
 async function convertScadToGlbWithColor(
-  scadPath = "/home/bridger/git/scad/static/models/house/house.scad",
+  scadPath = "/home/bridger/git/scad/static/models/generated/output.scad",
 ) {
-  const tempOffPath = "/tmp/house-color.off";
-  const outputGlbPath = "/home/bridger/git/scad/static/models/house/house.glb";
+  const tempOffPath = "/tmp/output-color.off";
+  const outputGlbPath = "/home/bridger/git/scad/static/models/generated/output.glb";
 
   console.log(`Converting SCAD with colors: ${scadPath}`);
 

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { convertScadToGlbWithColor } from "$lib/server/convert-scad-with-color.ts";
 
-const SCAD_FILE_PATH = "/home/bridger/git/scad/static/models/house/house.scad";
+const SCAD_FILE_PATH = "/home/bridger/git/scad/static/models/generated/output.scad";
 
 export const load = async () => {
   // Read the current SCAD file content
@@ -9,11 +9,11 @@ export const load = async () => {
 
   return {
     scadContent,
-    glbPath: "/models/house/house.glb",
+    glbPath: "/models/generated/output.glb",
     models: [
       {
-        name: "House Model",
-        path: "/models/house/house.glb",
+        name: "Generated Model",
+        path: "/models/generated/output.glb",
         environment: "/environments/default.hdr",
       },
     ],
