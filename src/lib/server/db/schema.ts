@@ -23,6 +23,7 @@ export const scads = pgTable("scads", {
   tags: text("tags"),
   downloadCount: integer("download_count").default(0),
   fileSize: integer("file_size"),
+  glbUrl: text("glb_url"), // Firebase Storage URL for the GLB file
   isPublic: boolean("is_public").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

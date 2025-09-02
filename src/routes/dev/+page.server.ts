@@ -1,7 +1,7 @@
 import { db } from "$lib/server/db";
 import { scadPhotos, scadRatings, scads, users } from "$lib/server/db/schema";
-import { redirect } from "@sveltejs/kit";
 import type { Actions } from "./$types";
+import { generateAndUploadGlb } from "$lib/server/glb-upload";
 
 const sampleTitles = [
   "Parametric Gear Generator",
@@ -51,9 +51,9 @@ const sampleDescriptions = [
 
 const sampleScadCode = [
   `// Parametric Gear
-module gear(teeth=20, module=2, height=5) {
+module gear(teeth=20, mod=2, height=5) {
     linear_extrude(height)
-    circle(r=teeth*module/2, $fn=teeth*4);
+        circle(r=teeth*mod/2, $fn=teeth*4);
 }
 
 gear();`,
@@ -69,35 +69,11 @@ module storage_box(width=50, depth=30, height=20) {
 
 storage_box();`,
 
-  `// Phone Stand
-angle = 60;
-width = 80;
-depth = 60;
-height = 40;
+  `// Simple Cube
+cube([20, 20, 20]);`,
 
-difference() {
-    hull() {
-        cube([width, 10, height]);
-        translate([0, depth-10, 0])
-            cube([width, 10, 20]);
-    }
-    translate([10, 5, 10])
-        cube([width-20, depth, height]);
-}`,
-
-  `// Customizable Keychain
-text_string = "OpenSCAD";
-text_size = 8;
-thickness = 3;
-
-linear_extrude(thickness)
-text(text_string, size=text_size, font="Arial:style=Bold", halign="center");
-
-translate([0, -15, 0])
-difference() {
-    cylinder(r=5, h=thickness);
-    cylinder(r=2, h=thickness*2, center=true);
-}`,
+  `// Simple Cylinder
+cylinder(r=10, h=15, $fn=50);`,
 ];
 
 const sampleUsernames = [
@@ -140,6 +116,14 @@ export const actions: Actions = {
     const count = parseInt(data.get("count") as string) || 10;
 
     try {
+      // Truncate all tables before seeding
+      console.log("Truncating existing data...");
+      await db.delete(scadRatings);
+      await db.delete(scadPhotos);
+      await db.delete(scads);
+      await db.delete(users);
+      console.log("Tables truncated successfully");
+
       // Create some sample users first
       const userIds = [];
       for (let i = 0; i < Math.min(5, count); i++) {
@@ -155,10 +139,28 @@ export const actions: Actions = {
 
       // Create SCADs
       for (let i = 0; i < count; i++) {
+        const scadContent = randomChoice(sampleScadCode);
+        const title = randomChoice(sampleTitles);
+        const description = randomChoice(sampleDescriptions);
+        let glbUrl = null;
+
+        // Generate and upload GLB file
+        try {
+          console.log(`Generating GLB for SCAD ${i + 1}/${count}: ${title}...`);
+          glbUrl = await generateAndUploadGlb(scadContent);
+          console.log(`Successfully generated GLB for ${title}: ${glbUrl}`);
+        } catch (error) {
+          console.error(
+            `Failed to generate GLB for SCAD ${i + 1} (${title}):`,
+            error.message,
+          );
+          // Continue without GLB URL - let it be null
+        }
+
         const [scad] = await db.insert(scads).values({
-          title: randomChoice(sampleTitles),
-          description: randomChoice(sampleDescriptions),
-          content: randomChoice(sampleScadCode),
+          title: `${title} #${i + 1}`, // Add index to ensure uniqueness
+          description: description,
+          content: scadContent,
           userId: randomChoice(userIds),
           tags: JSON.stringify([
             randomChoice([
@@ -173,6 +175,7 @@ export const actions: Actions = {
           ]),
           downloadCount: randomInt(0, 500),
           fileSize: randomInt(1024, 50000),
+          glbUrl: glbUrl,
           isPublic: Math.random() > 0.1, // 90% public
         }).returning({ id: scads.id });
 

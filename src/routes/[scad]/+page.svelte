@@ -10,6 +10,8 @@
 	let lastUpdate = '';
 	let modelError = false;
 	let lastProcessedContent = data.scad.content;
+	let modelUpdateTime = Date.now(); // For cache busting
+	let useFirebaseModel = false; // Track if we should use Firebase URL
 	
 	onMount(async () => {
 		if (browser) {
@@ -40,15 +42,23 @@
 			const result = await response.json();
 			
 			if (result.type === 'success') {
-				// Force reload the model viewer by updating the src with timestamp
-				const timestamp = Date.now();
-				if (modelViewer) {
-					modelViewer.src = `/models/scads/${data.scad.id}.glb?t=${timestamp}`;
-					modelError = false;
-				}
+				// Force reload the model viewer by updating the cache buster
+				modelUpdateTime = Date.now();
+				useFirebaseModel = false; // Use local model after successful generation
+				modelError = false;
 				lastUpdate = new Date().toLocaleTimeString();
 				// Update lastProcessedContent to current content
 				lastProcessedContent = scadContent;
+				
+				// Force the model-viewer to reload by directly updating its src
+				// Add a small delay to ensure file is fully written
+				setTimeout(() => {
+					if (modelViewer) {
+						const newSrc = `/models/previews/${data.scad.id}.glb?t=${modelUpdateTime}`;
+						console.log('Updating model-viewer src to:', newSrc);
+						modelViewer.src = newSrc;
+					}
+				}, 100);
 			} else {
 				console.error('Update failed:', result.data?.error);
 				alert('Update failed: ' + (result.data?.error || 'Unknown error'));
@@ -84,6 +94,65 @@
 		a.click();
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
+	}
+
+	// Extract GLB ID from Firebase Storage URL
+	function getGlbProxyUrl(glbUrl) {
+		if (!glbUrl) return null;
+		// Extract the filename from the Firebase URL
+		// URL format: https://storage.googleapis.com/.../scads/UUID.glb
+		const match = glbUrl.match(/scads\/([^\.]+)\.glb/);
+		if (match) {
+			return `/api/glb/${match[1]}`;
+		}
+		return null;
+	}
+
+	// Handle model loading errors with fallback
+	function handleModelError() {
+		if (!useFirebaseModel && data.scad.glbUrl) {
+			// First error - try Firebase model
+			console.log('Local GLB failed, trying Firebase model...');
+			useFirebaseModel = true;
+		} else {
+			// Both local and Firebase failed
+			console.log('Both local and Firebase GLB failed');
+			modelError = true;
+		}
+	}
+
+	// Save to database and Firebase Storage
+	async function saveScad() {
+		if (isUpdating) return;
+		
+		isUpdating = true;
+		try {
+			const formData = new FormData();
+			formData.append('scadContent', scadContent);
+			formData.append('scadId', data.scad.id);
+			
+			const response = await fetch('?/saveScad', {
+				method: 'POST',
+				body: formData
+			});
+			
+			const result = await response.json();
+			
+			if (result.type === 'success') {
+				alert('SCAD file saved successfully!');
+				// Update the page data to reflect the saved content
+				data.scad.content = scadContent;
+				lastProcessedContent = scadContent;
+			} else {
+				console.error('Save failed:', result.data?.error);
+				alert('Save failed: ' + (result.data?.error || 'Unknown error'));
+			}
+		} catch (error) {
+			console.error('Save error:', error);
+			alert('Save failed: ' + error.message);
+		} finally {
+			isUpdating = false;
+		}
 	}
 </script>
 
@@ -151,7 +220,7 @@
 							<model-viewer
 								bind:this={modelViewer}
 								alt="OpenSCAD 3D Model Preview"
-								src="/models/scads/{data.scad.id}.glb"
+								src="{useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : `/models/previews/${data.scad.id}.glb?t=${modelUpdateTime}`}"
 								ar
 								environment-image="/environments/default.hdr"
 								shadow-intensity="1"
@@ -161,7 +230,7 @@
 								exposure="1"
 								skybox-image="/environments/default.hdr"
 								loading="lazy"
-								on:error={() => modelError = true}
+								on:error={handleModelError}
 							></model-viewer>
 						{/if}
 					{:else}
@@ -173,9 +242,14 @@
 			<div class="code-section">
 				<div class="code-header">
 					<h2>OpenSCAD Code</h2>
-					<button on:click={downloadScad} class="download-btn">
-						Download .scad file
-					</button>
+					<div class="code-actions">
+						<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
+							{isUpdating ? 'Saving...' : 'Save Changes'}
+						</button>
+						<button on:click={downloadScad} class="download-btn">
+							Download .scad file
+						</button>
+					</div>
 				</div>
 				<textarea 
 					bind:value={scadContent}
@@ -409,6 +483,33 @@
 	.code-header h2 {
 		margin: 0;
 		color: #333;
+	}
+
+	.code-actions {
+		display: flex;
+		gap: 1rem;
+		align-items: center;
+	}
+
+	.save-btn {
+		background: #28a745;
+		color: white;
+		border: none;
+		padding: 0.75rem 1.5rem;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 0.9rem;
+		font-weight: 500;
+		transition: background 0.2s;
+	}
+
+	.save-btn:hover:not(:disabled) {
+		background: #218838;
+	}
+
+	.save-btn:disabled {
+		background: #6c757d;
+		cursor: not-allowed;
 	}
 
 	.code-editor {

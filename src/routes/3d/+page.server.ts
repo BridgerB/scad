@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from "fs";
 import { convertScadToGlbWithColor } from "$lib/server/convert-scad-with-color.ts";
 
-const SCAD_FILE_PATH = "/home/bridger/git/scad/static/models/generated/output.scad";
+const SCAD_FILE_PATH =
+  "/home/bridger/git/scad/static/models/generated/output.scad";
 
 export const load = async () => {
   // Read the current SCAD file content

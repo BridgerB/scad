@@ -27,6 +27,18 @@
 			handleSearch();
 		}
 	}
+
+	// Extract GLB ID from Firebase Storage URL
+	function getGlbProxyUrl(glbUrl) {
+		if (!glbUrl) return null;
+		// Extract the filename from the Firebase URL
+		// URL format: https://storage.googleapis.com/.../scads/UUID.glb
+		const match = glbUrl.match(/scads\/([^\.]+)\.glb/);
+		if (match) {
+			return `/api/glb/${match[1]}`;
+		}
+		return null;
+	}
 </script>
 
 <div class="container">
@@ -46,10 +58,10 @@
 		{#each data.scads as scad}
 			<div class="card">
 				<div class="model-container">
-					{#if browser}
+					{#if browser && scad.glbUrl && getGlbProxyUrl(scad.glbUrl)}
 						<model-viewer
 							alt="{scad.title} 3D Model"
-							src="/models/scads/{scad.id}.glb"
+							src="{getGlbProxyUrl(scad.glbUrl)}"
 							environment-image="/environments/default.hdr"
 							shadow-intensity="1"
 							camera-controls
@@ -63,6 +75,8 @@
 								}
 							}}
 						></model-viewer>
+					{:else if browser && !scad.glbUrl}
+						<div class="no-model">3D model unavailable</div>
 					{:else}
 						<div class="no-model">Loading 3D viewer...</div>
 					{/if}

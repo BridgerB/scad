@@ -10,10 +10,11 @@ import { exportGlb } from "/home/bridger/git/openscad-playground/src/io/export_g
 
 async function convertScadToGlbWithColor(
   scadPath = "/home/bridger/git/scad/static/models/generated/output.scad",
-  customOutputPath?: string
+  customOutputPath?: string,
 ) {
   const tempOffPath = "/tmp/output-color.off";
-  const outputGlbPath = customOutputPath || "/home/bridger/git/scad/static/models/generated/output.glb";
+  const outputGlbPath = customOutputPath ||
+    "/home/bridger/git/scad/static/models/generated/output.glb";
 
   console.log(`Converting SCAD with colors: ${scadPath}`);
 
@@ -26,7 +27,11 @@ async function convertScadToGlbWithColor(
     console.log(`Generated colored OFF file: ${tempOffPath}`);
   } catch (error) {
     console.error("Failed to generate OFF file:", error);
-    throw new Error(`OpenSCAD compilation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    throw new Error(
+      `OpenSCAD compilation failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    );
   }
 
   // Step 2: Parse the OFF file
