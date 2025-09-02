@@ -1,5 +1,67 @@
 <script>
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
+
 	export let data;
+
+	let modelViewer;
+	let scadContent = data.scad.content;
+	let isUpdating = false;
+	let lastUpdate = '';
+	let modelError = false;
+	let lastProcessedContent = data.scad.content;
+	
+	onMount(async () => {
+		if (browser) {
+			await import('@google/model-viewer');
+		}
+	});
+
+	// Reactive statement - updates model whenever scadContent changes
+	$: if (scadContent !== lastProcessedContent && scadContent.trim()) {
+		updateModel();
+	}
+
+	// Manual update function
+	async function updateModel() {
+		if (isUpdating) return;
+		
+		isUpdating = true;
+		try {
+			const formData = new FormData();
+			formData.append('scadContent', scadContent);
+			formData.append('scadId', data.scad.id);
+			
+			const response = await fetch('?/updateScad', {
+				method: 'POST',
+				body: formData
+			});
+			
+			const result = await response.json();
+			
+			if (result.type === 'success') {
+				// Force reload the model viewer by updating the src with timestamp
+				const timestamp = Date.now();
+				if (modelViewer) {
+					modelViewer.src = `/models/scads/${data.scad.id}.glb?t=${timestamp}`;
+					modelError = false;
+				}
+				lastUpdate = new Date().toLocaleTimeString();
+				// Update lastProcessedContent to current content
+				lastProcessedContent = scadContent;
+			} else {
+				console.error('Update failed:', result.data?.error);
+				alert('Update failed: ' + (result.data?.error || 'Unknown error'));
+				modelError = true;
+			}
+		} catch (error) {
+			console.error('Update error:', error);
+			alert('Update failed: ' + error.message);
+			modelError = true;
+		} finally {
+			isUpdating = false;
+		}
+	}
 
 	function formatFileSize(bytes) {
 		if (!bytes) return 'Unknown';
@@ -64,6 +126,50 @@
 				</div>
 			{/if}
 
+			<div class="viewer-section">
+				<div class="viewer-header">
+					<h2>3D Preview</h2>
+					<div class="viewer-controls">
+						{#if isUpdating}
+							<span class="status updating">Updating...</span>
+						{:else if lastUpdate}
+							<span class="status updated">Last update: {lastUpdate}</span>
+						{:else}
+							<span class="status">Ready</span>
+						{/if}
+					</div>
+				</div>
+				
+				<div class="model-container">
+					{#if browser}
+						{#if modelError}
+							<div class="model-error">
+								<p>3D model failed to load</p>
+								<p class="error-hint">Try switching to edit mode and modifying the code to regenerate the model</p>
+							</div>
+						{:else}
+							<model-viewer
+								bind:this={modelViewer}
+								alt="OpenSCAD 3D Model Preview"
+								src="/models/scads/{data.scad.id}.glb"
+								ar
+								environment-image="/environments/default.hdr"
+								shadow-intensity="1"
+								camera-controls
+								touch-action="pan-y"
+								auto-rotate
+								exposure="1"
+								skybox-image="/environments/default.hdr"
+								loading="lazy"
+								on:error={() => modelError = true}
+							></model-viewer>
+						{/if}
+					{:else}
+						<div class="loading">Loading 3D viewer...</div>
+					{/if}
+				</div>
+			</div>
+
 			<div class="code-section">
 				<div class="code-header">
 					<h2>OpenSCAD Code</h2>
@@ -71,7 +177,12 @@
 						Download .scad file
 					</button>
 				</div>
-				<pre class="code-block"><code>{data.scad.content}</code></pre>
+				<textarea 
+					bind:value={scadContent}
+					class="code-editor"
+					placeholder="Enter your OpenSCAD code here..."
+					spellcheck="false"
+				></textarea>
 			</div>
 		</div>
 
@@ -196,6 +307,94 @@
 		color: #555;
 	}
 
+	.viewer-section {
+		margin-bottom: 2rem;
+	}
+
+	.viewer-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1rem;
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.viewer-header h2 {
+		margin: 0;
+		color: #333;
+	}
+
+	.viewer-controls {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+
+	.status {
+		font-size: 0.9rem;
+		color: #666;
+	}
+
+	.status.updating {
+		color: #007acc;
+	}
+
+	.status.updated {
+		color: #28a745;
+	}
+
+	.model-container {
+		background: #f5f5f5;
+		border-radius: 8px;
+		min-height: 500px;
+		position: relative;
+		margin-bottom: 2rem;
+	}
+
+	model-viewer {
+		width: 100%;
+		height: 500px;
+		background-color: #eee;
+		border-radius: 8px;
+	}
+
+	.loading {
+		width: 100%;
+		height: 500px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.2rem;
+		color: #666;
+		background-color: #eee;
+		border-radius: 8px;
+	}
+
+	.model-error {
+		width: 100%;
+		height: 500px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		background-color: #f8d7da;
+		border: 1px solid #f5c6cb;
+		border-radius: 8px;
+		color: #721c24;
+		text-align: center;
+	}
+
+	.model-error p {
+		margin: 0.5rem 0;
+	}
+
+	.error-hint {
+		font-size: 0.9rem;
+		color: #856404;
+	}
+
 	.code-section {
 		margin-bottom: 2rem;
 	}
@@ -210,6 +409,28 @@
 	.code-header h2 {
 		margin: 0;
 		color: #333;
+	}
+
+	.code-editor {
+		width: 100%;
+		min-height: 400px;
+		resize: vertical;
+		border: 1px solid #e9ecef;
+		border-radius: 4px;
+		padding: 1rem;
+		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+		font-size: 14px;
+		line-height: 1.5;
+		background: #1e1e1e;
+		color: #d4d4d4;
+		outline: none;
+		white-space: pre;
+		overflow-wrap: normal;
+		overflow-x: auto;
+	}
+
+	.code-editor::placeholder {
+		color: #6a9955;
 	}
 
 	.download-btn {
