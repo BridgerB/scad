@@ -1,10 +1,18 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	
 	export let data;
 	
 	let searchQuery = $page.url.searchParams.get('search') || '';
+	
+	onMount(async () => {
+		if (browser) {
+			await import('@google/model-viewer');
+		}
+	});
 	
 	function handleSearch() {
 		if (searchQuery.trim()) {
@@ -37,11 +45,28 @@
 	<div class="cards-grid">
 		{#each data.scads as scad}
 			<div class="card">
-				{#if scad.firstPhoto}
-					<img src={scad.firstPhoto} alt={scad.title} />
-				{:else}
-					<div class="no-image">No image</div>
-				{/if}
+				<div class="model-container">
+					{#if browser}
+						<model-viewer
+							alt="{scad.title} 3D Model"
+							src="/models/scads/{scad.id}.glb"
+							environment-image="/environments/default.hdr"
+							shadow-intensity="1"
+							camera-controls
+							auto-rotate
+							loading="lazy"
+							on:error={(event) => {
+								// Fallback to no-model state on error
+								const container = event.target.closest('.model-container');
+								if (container) {
+									container.innerHTML = '<div class="no-model">3D model unavailable</div>';
+								}
+							}}
+						></model-viewer>
+					{:else}
+						<div class="no-model">Loading 3D viewer...</div>
+					{/if}
+				</div>
 				<div class="card-content">
 					<h3><a href="/{scad.id}">{scad.title}</a></h3>
 					<p>{scad.description || 'No description'}</p>
@@ -162,13 +187,20 @@
 		box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 	}
 
-	.card img {
+	.model-container {
 		width: 100%;
 		height: 200px;
-		object-fit: cover;
+		background: #f5f5f5;
+		position: relative;
 	}
 
-	.no-image {
+	.model-container model-viewer {
+		width: 100%;
+		height: 100%;
+		background-color: #eee;
+	}
+
+	.no-model {
 		width: 100%;
 		height: 200px;
 		background: #f5f5f5;
@@ -176,6 +208,7 @@
 		align-items: center;
 		justify-content: center;
 		color: #999;
+		font-size: 0.9rem;
 	}
 
 	.card-content {
