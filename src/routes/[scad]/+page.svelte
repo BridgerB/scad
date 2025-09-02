@@ -11,7 +11,7 @@
 	let modelError = false;
 	let lastProcessedContent = data.scad.content;
 	let modelUpdateTime = Date.now(); // For cache busting
-	let useFirebaseModel = false; // Track if we should use Firebase URL
+	let useFirebaseModel = true; // Start with Firebase model on page load
 	
 	onMount(async () => {
 		if (browser) {
@@ -110,13 +110,13 @@
 
 	// Handle model loading errors with fallback
 	function handleModelError() {
-		if (!useFirebaseModel && data.scad.glbUrl) {
-			// First error - try Firebase model
-			console.log('Local GLB failed, trying Firebase model...');
-			useFirebaseModel = true;
+		if (useFirebaseModel && data.scad.glbUrl) {
+			// Firebase model failed - try local preview
+			console.log('Firebase GLB failed, trying local preview...');
+			useFirebaseModel = false;
 		} else {
-			// Both local and Firebase failed
-			console.log('Both local and Firebase GLB failed');
+			// Both Firebase and local failed
+			console.log('Both Firebase and local GLB failed');
 			modelError = true;
 		}
 	}
