@@ -34,9 +34,21 @@ async function convertScadToGlbWithColor() {
     
     console.log(`Parsed OFF: ${polyhedron.vertices.length} vertices, ${polyhedron.faces.length} faces, ${polyhedron.colors.length} colors`);
     
+    // Step 2.5: Fix coordinate system (OpenSCAD Z-up to GLB Y-up) + flip upside down
+    console.log('Applying coordinate system transformation...');
+    const transformedPolyhedron = {
+        vertices: polyhedron.vertices.map(vertex => ({
+            x: vertex.x,      // X stays the same
+            y: vertex.z,      // Y = Z (was -Z, now flipped)
+            z: -vertex.y      // Z = -Y (was Y, now flipped)
+        })),
+        faces: polyhedron.faces,
+        colors: polyhedron.colors
+    };
+    
     // Step 3: Convert to GLB
     console.log('Converting to GLB format...');
-    const glbBlob = await exportGlb(polyhedron);
+    const glbBlob = await exportGlb(transformedPolyhedron);
     const glbBuffer = Buffer.from(await glbBlob.arrayBuffer());
     
     // Step 4: Ensure output directory exists and write GLB file
