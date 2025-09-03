@@ -12,12 +12,41 @@
 	let lastProcessedContent = data.scad.content;
 	let modelUpdateTime = Date.now(); // For cache busting
 	let useFirebaseModel = true; // Start with Firebase model on page load
+	let editorView;
+	let editorContainer;
 	
 	onMount(async () => {
 		if (browser) {
 			await import('@google/model-viewer');
+			await setupCodeMirror();
 		}
 	});
+
+	async function setupCodeMirror() {
+		const { EditorView, basicSetup } = await import('codemirror');
+		const { EditorState } = await import('@codemirror/state');
+		const { oneDark } = await import('@codemirror/theme-one-dark');
+		const { cpp } = await import('@codemirror/lang-cpp');
+
+		const startState = EditorState.create({
+			doc: scadContent,
+			extensions: [
+				basicSetup,
+				oneDark,
+				cpp(), // Use C++ syntax highlighting for OpenSCAD
+				EditorView.updateListener.of((update) => {
+					if (update.docChanged) {
+						scadContent = update.state.doc.toString();
+					}
+				})
+			]
+		});
+
+		editorView = new EditorView({
+			state: startState,
+			parent: editorContainer
+		});
+	}
 
 	// Reactive statement - updates model whenever scadContent changes
 	$: if (scadContent !== lastProcessedContent && scadContent.trim()) {
@@ -189,12 +218,10 @@
 				</div>
 			</div>
 			
-			<textarea 
-				bind:value={scadContent}
+			<div 
+				bind:this={editorContainer}
 				class="code-editor"
-				placeholder="Enter your OpenSCAD code here..."
-				spellcheck="false"
-			></textarea>
+			></div>
 		</div>
 		
 		<!-- Model Viewer Panel - Right Side -->
@@ -428,22 +455,21 @@
 
 	.code-editor {
 		flex: 1;
-		resize: none;
 		border: none;
-		padding: 1rem;
 		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 		font-size: 14px;
 		line-height: 1.5;
-		background: #1e1e1e;
-		color: #d4d4d4;
-		outline: none;
-		white-space: pre;
-		overflow-wrap: normal;
-		overflow-x: auto;
+		overflow: hidden;
 	}
 
-	.code-editor::placeholder {
-		color: #6a9955;
+	.code-editor :global(.cm-editor) {
+		height: 100%;
+		font-size: 14px;
+		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+	}
+
+	.code-editor :global(.cm-focused) {
+		outline: none;
 	}
 
 	.model-container {
