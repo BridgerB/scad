@@ -206,40 +206,28 @@
 	<div class="editor-viewer-layout">
 		<!-- Code Editor Panel - Left Side -->
 		<div class="editor-panel">
-			<div class="editor-header">
-				<h2>OpenSCAD Code</h2>
-				<div class="editor-controls">
-					<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
-						{isUpdating ? 'Saving...' : 'Save Changes'}
-					</button>
-					<button on:click={downloadScad} class="download-btn">
-						Download .scad file
-					</button>
-				</div>
-			</div>
-			
 			<div 
 				bind:this={editorContainer}
 				class="code-editor"
 			></div>
+			
+			<div class="editor-footer">
+				<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
+					{isUpdating ? 'Saving...' : 'Save Changes'}
+				</button>
+				<button on:click={downloadScad} class="download-btn">
+					Download .scad file
+				</button>
+			</div>
 		</div>
 		
 		<!-- Model Viewer Panel - Right Side -->
 		<div class="viewer-panel">
-			<div class="viewer-header">
-				<h2>3D Preview</h2>
-				<div class="viewer-controls">
-					{#if isUpdating}
-						<span class="status updating">Updating...</span>
-					{:else if lastUpdate}
-						<span class="status updated">Last update: {lastUpdate}</span>
-					{:else}
-						<span class="status">Ready</span>
-					{/if}
-				</div>
-			</div>
-			
 			<div class="model-container">
+				{#if isUpdating}
+					<div class="status-overlay updating">Updating...</div>
+				{/if}
+				
 				{#if browser}
 					{#if modelError}
 						<div class="model-error">
@@ -375,48 +363,33 @@
 		overflow: hidden;
 	}
 
-	.editor-header, .viewer-header {
+	.editor-footer {
 		display: flex;
-		justify-content: space-between;
 		align-items: center;
+		gap: 1rem;
 		padding: 1rem;
 		background: #f8f9fa;
-		border-bottom: 1px solid #ddd;
-		min-height: 60px;
-		flex-wrap: wrap;
-		gap: 1rem;
+		border-top: 1px solid #ddd;
 	}
 
-	.editor-header h2, .viewer-header h2 {
-		margin: 0;
-		font-size: 1.2rem;
-		color: #333;
-	}
-
-	.editor-controls {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.viewer-controls {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.status {
+	.status-overlay {
+		position: absolute;
+		top: 10px;
+		right: 10px;
+		padding: 0.5rem 1rem;
+		background: rgba(255, 255, 255, 0.9);
+		border-radius: 4px;
 		font-size: 0.9rem;
-		color: #666;
+		z-index: 1000;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 
-	.status.updating {
+	.status-overlay.updating {
+		background: rgba(0, 122, 204, 0.1);
+		border: 1px solid #007acc;
 		color: #007acc;
 	}
 
-	.status.updated {
-		color: #28a745;
-	}
 
 	.save-btn {
 		background: #28a745;
@@ -612,14 +585,10 @@
 			padding: 0.5rem;
 		}
 		
-		.editor-header, .viewer-header {
+		.editor-footer {
 			flex-direction: column;
 			gap: 0.5rem;
 			padding: 0.75rem;
-		}
-		
-		.editor-controls {
-			gap: 0.5rem;
 		}
 		
 		.model-container {

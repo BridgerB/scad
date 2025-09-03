@@ -8,7 +8,23 @@
 
 	let title = '';
 	let description = '';
-	let content = '';
+	let content = `// 1. Sphere
+sphere(10);
+
+// 2. Cube
+// cube(15);
+
+// 3. Cylinder
+// cylinder(h=20, r=8);
+
+// 4. Cone (cylinder with different top/bottom radii)
+// cylinder(h=15, r1=10, r2=0);
+
+// 5. Rounded cube
+// minkowski() {
+//     cube([20, 20, 20]);
+//     sphere(2);
+// }`;
 	let tags = '';
 	let username = '';
 	let isSubmitting = false;
@@ -16,12 +32,41 @@
 	let hasPreview = false;
 	let isGeneratingPreview = false;
 	let lastPreviewContent = '';
+	let editorView;
+	let editorContainer;
 
 	onMount(async () => {
 		if (browser) {
 			await import('@google/model-viewer');
+			await setupCodeMirror();
 		}
 	});
+
+	async function setupCodeMirror() {
+		const { EditorView, basicSetup } = await import('codemirror');
+		const { EditorState } = await import('@codemirror/state');
+		const { oneDark } = await import('@codemirror/theme-one-dark');
+		const { cpp } = await import('@codemirror/lang-cpp');
+
+		const startState = EditorState.create({
+			doc: content,
+			extensions: [
+				basicSetup,
+				oneDark,
+				cpp(), // Use C++ syntax highlighting for OpenSCAD
+				EditorView.updateListener.of((update) => {
+					if (update.docChanged) {
+						content = update.state.doc.toString();
+					}
+				})
+			]
+		});
+
+		editorView = new EditorView({
+			state: startState,
+			parent: editorContainer
+		});
+	}
 
 	// Generate preview when content changes (with debounce)
 	let previewTimeout;
@@ -150,16 +195,11 @@
 
 				<div class="form-group">
 					<label for="content">OpenSCAD Code *</label>
-					<textarea
-						id="content"
-						name="content"
-						bind:value={content}
-						required
-						rows="15"
-						class="code-editor"
-						placeholder="Enter your OpenSCAD code here..."
-						spellcheck="false"
-					></textarea>
+					<div 
+						bind:this={editorContainer}
+						class="code-editor-container"
+					></div>
+					<input type="hidden" name="content" bind:value={content} required />
 					{#if form?.errors?.content}
 						<div class="error">{form.errors.content}</div>
 					{/if}
@@ -289,20 +329,22 @@
 		box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
 	}
 
-	.code-editor {
+	.code-editor-container {
+		border: 1px solid #ddd;
+		border-radius: 4px;
+		overflow: hidden;
+		min-height: 400px;
 		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-		font-size: 14px;
-		line-height: 1.5;
-		background: #1e1e1e;
-		color: #d4d4d4;
-		white-space: pre;
-		overflow-wrap: normal;
-		overflow-x: auto;
-		resize: vertical;
 	}
 
-	.code-editor::placeholder {
-		color: #6a9955;
+	.code-editor-container :global(.cm-editor) {
+		min-height: 400px;
+		font-size: 14px;
+		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+	}
+
+	.code-editor-container :global(.cm-focused) {
+		outline: none;
 	}
 
 	.help-text {
