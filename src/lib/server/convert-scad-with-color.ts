@@ -12,7 +12,9 @@ async function convertScadToGlbWithColor(
   scadPath = "/home/bridger/git/scad/static/models/generated/output.scad",
   customOutputPath?: string,
 ) {
-  const tempOffPath = "/tmp/output-color.off";
+  // Use unique temporary file paths to avoid conflicts
+  const tempId = Date.now().toString() + Math.random().toString(36);
+  const tempOffPath = `/tmp/output-color-${tempId}.off`;
   const outputGlbPath = customOutputPath ||
     "/home/bridger/git/scad/static/models/generated/output.glb";
 
@@ -21,16 +23,18 @@ async function convertScadToGlbWithColor(
   // Step 1: Generate OFF file with colors using OpenSCAD with Manifold backend
   console.log("Generating OFF file with colors using OpenSCAD...");
   try {
-    execSync(`openscad --backend=manifold -o ${tempOffPath} ${scadPath}`, {
-      stdio: "inherit",
+    const result = execSync(`openscad --backend=manifold -o ${tempOffPath} ${scadPath}`, {
+      stdio: "pipe",
+      encoding: "utf8"
     });
     console.log(`Generated colored OFF file: ${tempOffPath}`);
-  } catch (error) {
+    if (result) console.log("OpenSCAD output:", result);
+  } catch (error: any) {
     console.error("Failed to generate OFF file:", error);
+    console.error("OpenSCAD stderr:", error.stderr);
+    console.error("OpenSCAD stdout:", error.stdout);
     throw new Error(
-      `OpenSCAD compilation failed: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`,
+      `OpenSCAD compilation failed: ${error.stderr || error.stdout || error.message || "Unknown error"}`,
     );
   }
 

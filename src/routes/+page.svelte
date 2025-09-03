@@ -48,6 +48,13 @@
 <div class="container">
 	<h1>OpenSCAD Files</h1>
 	
+	<div class="create-section">
+		<a href="/create" class="create-button">
+			<span class="create-icon">+</span>
+			Create New SCAD File
+		</a>
+	</div>
+	
 	<div class="search-box">
 		<input 
 			type="text" 
@@ -157,6 +164,38 @@
 		max-width: 1200px;
 		margin: 0 auto;
 		padding: 2rem;
+	}
+
+	.create-section {
+		margin: 2rem 0;
+		text-align: center;
+	}
+
+	.create-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.75rem;
+		background: #28a745;
+		color: white;
+		text-decoration: none;
+		padding: 1rem 2rem;
+		border-radius: 8px;
+		font-size: 1.1rem;
+		font-weight: 600;
+		transition: all 0.2s;
+		box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+	}
+
+	.create-button:hover {
+		background: #218838;
+		transform: translateY(-2px);
+		box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+	}
+
+	.create-icon {
+		font-size: 1.5rem;
+		font-weight: bold;
+		line-height: 1;
 	}
 
 	.search-box {
