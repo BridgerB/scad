@@ -173,94 +173,103 @@
 		</div>
 	</div>
 
-	<div class="content-grid">
-		<div class="main-content">
-			{#if data.photos.length > 0}
-				<div class="photo-gallery">
-					{#each data.photos as photo}
-						<div class="photo">
-							<img src={photo.url} alt={photo.description || data.scad.title} />
-							{#if photo.description}
-								<p class="photo-caption">{photo.description}</p>
-							{/if}
-						</div>
-					{/each}
+	<!-- Split Panel Layout - Top Section -->
+	<div class="editor-viewer-layout">
+		<!-- Code Editor Panel - Left Side -->
+		<div class="editor-panel">
+			<div class="editor-header">
+				<h2>OpenSCAD Code</h2>
+				<div class="editor-controls">
+					<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
+						{isUpdating ? 'Saving...' : 'Save Changes'}
+					</button>
+					<button on:click={downloadScad} class="download-btn">
+						Download .scad file
+					</button>
 				</div>
-			{/if}
-
-			{#if data.scad.description}
-				<div class="description">
-					<h2>Description</h2>
-					<p>{data.scad.description}</p>
-				</div>
-			{/if}
-
-			<div class="viewer-section">
-				<div class="viewer-header">
-					<h2>3D Preview</h2>
-					<div class="viewer-controls">
-						{#if isUpdating}
-							<span class="status updating">Updating...</span>
-						{:else if lastUpdate}
-							<span class="status updated">Last update: {lastUpdate}</span>
-						{:else}
-							<span class="status">Ready</span>
-						{/if}
-					</div>
-				</div>
-				
-				<div class="model-container">
-					{#if browser}
-						{#if modelError}
-							<div class="model-error">
-								<p>3D model failed to load</p>
-								<p class="error-hint">Try switching to edit mode and modifying the code to regenerate the model</p>
-							</div>
-						{:else}
-							<model-viewer
-								bind:this={modelViewer}
-								alt="OpenSCAD 3D Model Preview"
-								src="{useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : `/models/previews/${data.scad.id}.glb?t=${modelUpdateTime}`}"
-								ar
-								environment-image="/environments/default.hdr"
-								shadow-intensity="1"
-								camera-controls
-								touch-action="pan-y"
-								auto-rotate
-								exposure="1"
-								skybox-image="/environments/default.hdr"
-								loading="lazy"
-								on:error={handleModelError}
-							></model-viewer>
-						{/if}
+			</div>
+			
+			<textarea 
+				bind:value={scadContent}
+				class="code-editor"
+				placeholder="Enter your OpenSCAD code here..."
+				spellcheck="false"
+			></textarea>
+		</div>
+		
+		<!-- Model Viewer Panel - Right Side -->
+		<div class="viewer-panel">
+			<div class="viewer-header">
+				<h2>3D Preview</h2>
+				<div class="viewer-controls">
+					{#if isUpdating}
+						<span class="status updating">Updating...</span>
+					{:else if lastUpdate}
+						<span class="status updated">Last update: {lastUpdate}</span>
 					{:else}
-						<div class="loading">Loading 3D viewer...</div>
+						<span class="status">Ready</span>
 					{/if}
 				</div>
 			</div>
-
-			<div class="code-section">
-				<div class="code-header">
-					<h2>OpenSCAD Code</h2>
-					<div class="code-actions">
-						<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
-							{isUpdating ? 'Saving...' : 'Save Changes'}
-						</button>
-						<button on:click={downloadScad} class="download-btn">
-							Download .scad file
-						</button>
-					</div>
-				</div>
-				<textarea 
-					bind:value={scadContent}
-					class="code-editor"
-					placeholder="Enter your OpenSCAD code here..."
-					spellcheck="false"
-				></textarea>
+			
+			<div class="model-container">
+				{#if browser}
+					{#if modelError}
+						<div class="model-error">
+							<p>3D model failed to load</p>
+							<p class="error-hint">Try modifying the code to regenerate the model</p>
+						</div>
+					{:else}
+						<model-viewer
+							bind:this={modelViewer}
+							alt="OpenSCAD 3D Model Preview"
+							src="{useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : `/models/previews/${data.scad.id}.glb?t=${modelUpdateTime}`}"
+							ar
+							environment-image="/environments/default.hdr"
+							shadow-intensity="1"
+							camera-controls
+							touch-action="pan-y"
+							auto-rotate
+							exposure="1"
+							skybox-image="/environments/default.hdr"
+							loading="lazy"
+							on:error={handleModelError}
+						></model-viewer>
+					{/if}
+				{:else}
+					<div class="loading">Loading 3D viewer...</div>
+				{/if}
 			</div>
 		</div>
+	</div>
 
-		<div class="sidebar">
+	<!-- Bottom Section - Description and Info Cards -->
+	<div class="bottom-section">
+		{#if data.scad.description}
+			<div class="description-card">
+				<h2>Description</h2>
+				<p>{data.scad.description}</p>
+			</div>
+		{/if}
+
+		<div class="info-cards">
+			<div class="author-card">
+				<h3>Author</h3>
+				<p>{data.scad.username}</p>
+				<p class="join-date">Joined {formatDate(data.scad.createdAt)}</p>
+			</div>
+
+			{#if data.scad.tags.length > 0}
+				<div class="tags-card">
+					<h3>Tags</h3>
+					<div class="tags">
+						{#each data.scad.tags as tag}
+							<span class="tag">{tag}</span>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
 			<div class="stats-card">
 				<h3>Statistics</h3>
 				<div class="stat">
@@ -280,32 +289,15 @@
 					<span class="stat-value">{data.stats.dislikes}</span>
 				</div>
 			</div>
-
-			{#if data.scad.tags.length > 0}
-				<div class="tags-card">
-					<h3>Tags</h3>
-					<div class="tags">
-						{#each data.scad.tags as tag}
-							<span class="tag">{tag}</span>
-						{/each}
-					</div>
-				</div>
-			{/if}
-
-			<div class="author-card">
-				<h3>Author</h3>
-				<p>{data.scad.username}</p>
-				<p class="join-date">Joined {formatDate(data.scad.createdAt)}</p>
-			</div>
 		</div>
 	</div>
 </div>
 
 <style>
 	.container {
-		max-width: 1200px;
+		max-width: 1400px;
 		margin: 0 auto;
-		padding: 2rem;
+		padding: 1rem;
 	}
 
 	.back-link {
@@ -327,6 +319,7 @@
 	.meta {
 		color: #666;
 		font-size: 0.9rem;
+		margin-bottom: 2rem;
 	}
 
 	.meta span {
@@ -337,66 +330,46 @@
 		margin-left: 0;
 	}
 
-	.content-grid {
+	/* Split Panel Layout - Top Section */
+	.editor-viewer-layout {
 		display: grid;
-		grid-template-columns: 1fr 300px;
-		gap: 2rem;
-		margin-top: 2rem;
-	}
-
-	.photo-gallery {
+		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
 		margin-bottom: 2rem;
+		min-height: 80vh;
 	}
 
-	.photo {
-		margin-bottom: 1rem;
-	}
-
-	.photo img {
-		width: 100%;
-		height: 300px;
-		object-fit: cover;
+	.editor-panel, .viewer-panel {
+		display: flex;
+		flex-direction: column;
+		background: white;
 		border-radius: 8px;
-		box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+		border: 1px solid #ddd;
+		overflow: hidden;
 	}
 
-	.photo-caption {
-		margin: 0.5rem 0 0 0;
-		color: #666;
-		font-size: 0.9rem;
-		font-style: italic;
-	}
-
-	.description {
-		margin-bottom: 2rem;
-	}
-
-	.description h2 {
-		color: #333;
-		margin-bottom: 1rem;
-	}
-
-	.description p {
-		line-height: 1.6;
-		color: #555;
-	}
-
-	.viewer-section {
-		margin-bottom: 2rem;
-	}
-
-	.viewer-header {
+	.editor-header, .viewer-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 1rem;
+		padding: 1rem;
+		background: #f8f9fa;
+		border-bottom: 1px solid #ddd;
+		min-height: 60px;
 		flex-wrap: wrap;
 		gap: 1rem;
 	}
 
-	.viewer-header h2 {
+	.editor-header h2, .viewer-header h2 {
 		margin: 0;
+		font-size: 1.2rem;
 		color: #333;
+	}
+
+	.editor-controls {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
 	}
 
 	.viewer-controls {
@@ -404,7 +377,6 @@
 		align-items: center;
 		gap: 1rem;
 	}
-
 
 	.status {
 		font-size: 0.9rem;
@@ -419,83 +391,11 @@
 		color: #28a745;
 	}
 
-	.model-container {
-		background: #f5f5f5;
-		border-radius: 8px;
-		min-height: 500px;
-		position: relative;
-		margin-bottom: 2rem;
-	}
-
-	model-viewer {
-		width: 100%;
-		height: 500px;
-		background-color: #eee;
-		border-radius: 8px;
-	}
-
-	.loading {
-		width: 100%;
-		height: 500px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 1.2rem;
-		color: #666;
-		background-color: #eee;
-		border-radius: 8px;
-	}
-
-	.model-error {
-		width: 100%;
-		height: 500px;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		background-color: #f8d7da;
-		border: 1px solid #f5c6cb;
-		border-radius: 8px;
-		color: #721c24;
-		text-align: center;
-	}
-
-	.model-error p {
-		margin: 0.5rem 0;
-	}
-
-	.error-hint {
-		font-size: 0.9rem;
-		color: #856404;
-	}
-
-	.code-section {
-		margin-bottom: 2rem;
-	}
-
-	.code-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-	}
-
-	.code-header h2 {
-		margin: 0;
-		color: #333;
-	}
-
-	.code-actions {
-		display: flex;
-		gap: 1rem;
-		align-items: center;
-	}
-
 	.save-btn {
 		background: #28a745;
 		color: white;
 		border: none;
-		padding: 0.75rem 1.5rem;
+		padding: 0.5rem 1rem;
 		border-radius: 4px;
 		cursor: pointer;
 		font-size: 0.9rem;
@@ -512,12 +412,24 @@
 		cursor: not-allowed;
 	}
 
-	.code-editor {
-		width: 100%;
-		min-height: 400px;
-		resize: vertical;
-		border: 1px solid #e9ecef;
+	.download-btn {
+		background: #007bff;
+		color: white;
+		border: none;
+		padding: 0.5rem 1rem;
 		border-radius: 4px;
+		cursor: pointer;
+		font-size: 0.9rem;
+	}
+
+	.download-btn:hover {
+		background: #0056b3;
+	}
+
+	.code-editor {
+		flex: 1;
+		resize: none;
+		border: none;
 		padding: 1rem;
 		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 		font-size: 14px;
@@ -534,39 +446,85 @@
 		color: #6a9955;
 	}
 
-	.download-btn {
-		background: #28a745;
-		color: white;
-		border: none;
-		padding: 0.75rem 1.5rem;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 0.9rem;
+	.model-container {
+		flex: 1;
+		background: #f5f5f5;
+		position: relative;
+		min-height: 500px;
 	}
 
-	.download-btn:hover {
-		background: #218838;
+	model-viewer {
+		width: 100%;
+		height: 100%;
+		background-color: #eee;
 	}
 
-	.code-block {
-		background: #f8f9fa;
-		border: 1px solid #e9ecef;
-		border-radius: 4px;
-		padding: 1rem;
-		overflow-x: auto;
-		font-family: 'Courier New', monospace;
-		font-size: 0.9rem;
-		line-height: 1.4;
+	.loading {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.2rem;
+		color: #666;
+		background-color: #eee;
 	}
 
-	.sidebar {
+	.model-error {
+		width: 100%;
+		height: 100%;
 		display: flex;
 		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		background-color: #f8d7da;
+		border: 1px solid #f5c6cb;
+		color: #721c24;
+		text-align: center;
+	}
+
+	.model-error p {
+		margin: 0.5rem 0;
+	}
+
+	.error-hint {
+		font-size: 0.9rem;
+		color: #856404;
+	}
+
+	/* Bottom Section */
+	.bottom-section {
+		display: flex;
+		flex-direction: column;
+		gap: 2rem;
+	}
+
+	.description-card {
+		background: white;
+		border: 1px solid #ddd;
+		border-radius: 8px;
+		padding: 2rem;
+	}
+
+	.description-card h2 {
+		color: #333;
+		margin: 0 0 1rem 0;
+	}
+
+	.description-card p {
+		line-height: 1.6;
+		color: #555;
+		margin: 0;
+	}
+
+	.info-cards {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 		gap: 1.5rem;
 	}
 
 	.stats-card, .tags-card, .author-card {
-		background: #f9f9f9;
+		background: white;
 		border: 1px solid #ddd;
 		border-radius: 8px;
 		padding: 1.5rem;
@@ -612,15 +570,34 @@
 		margin: 0.5rem 0 0 0;
 	}
 
-	@media (max-width: 768px) {
-		.content-grid {
+	@media (max-width: 1024px) {
+		.editor-viewer-layout {
 			grid-template-columns: 1fr;
+			gap: 1rem;
 		}
 		
-		.code-header {
+		.info-cards {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.container {
+			padding: 0.5rem;
+		}
+		
+		.editor-header, .viewer-header {
 			flex-direction: column;
-			align-items: flex-start;
-			gap: 1rem;
+			gap: 0.5rem;
+			padding: 0.75rem;
+		}
+		
+		.editor-controls {
+			gap: 0.5rem;
+		}
+		
+		.model-container {
+			min-height: 400px;
 		}
 	}
 </style>
