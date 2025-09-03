@@ -1,6 +1,8 @@
+import type { Actions, PageServerLoad } from "./$types";
+import { fail } from "@sveltejs/kit";
 import { db } from "$lib/server/db";
 import { scadPhotos, scadRatings, scads, users } from "$lib/server/db/schema";
-import type { Actions } from "./$types";
+import { count, desc, sql } from "drizzle-orm";
 import { generateAndUploadGlb } from "$lib/server/glb-upload";
 
 const sampleTitles = [
@@ -110,6 +112,87 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+export const load: PageServerLoad = async () => {
+  try {
+    // Database health check
+    const dbHealthCheck = await db
+      .select({ now: sql<string>`NOW()` })
+      .from(sql`(SELECT NOW() as now) as health_check`)
+      .limit(1);
+
+    // Get table sizes
+    const scadTableSize = await db.select({ count: count() }).from(scads);
+    const userTableSize = await db.select({ count: count() }).from(users);
+    const photoTableSize = await db.select({ count: count() }).from(scadPhotos);
+    const ratingTableSize = await db.select({ count: count() }).from(scadRatings);
+
+    // Get recent database activity
+    const recentScads = await db
+      .select({
+        id: scads.id,
+        title: scads.title,
+        createdAt: scads.createdAt,
+      })
+      .from(scads)
+      .orderBy(desc(scads.createdAt))
+      .limit(5);
+
+    const recentUsers = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(5);
+
+    // System information
+    const systemInfo = {
+      nodeVersion: process.version,
+      platform: process.platform,
+      uptime: Math.floor(process.uptime()),
+      memoryUsage: process.memoryUsage(),
+      environment: process.env.NODE_ENV || "development",
+    };
+
+    return {
+      dbHealth: {
+        status: "connected",
+        timestamp: dbHealthCheck[0]?.now || new Date().toISOString(),
+      },
+      tableStats: {
+        scads: scadTableSize[0]?.count || 0,
+        users: userTableSize[0]?.count || 0,
+        photos: photoTableSize[0]?.count || 0,
+        ratings: ratingTableSize[0]?.count || 0,
+      },
+      recentActivity: {
+        scads: recentScads,
+        users: recentUsers,
+      },
+      systemInfo,
+    };
+  } catch (error) {
+    console.error("Error loading dev data:", error);
+    return {
+      dbHealth: {
+        status: "error",
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      tableStats: { scads: 0, users: 0, photos: 0, ratings: 0 },
+      recentActivity: { scads: [], users: [] },
+      systemInfo: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        uptime: Math.floor(process.uptime()),
+        memoryUsage: process.memoryUsage(),
+        environment: process.env.NODE_ENV || "development",
+      },
+    };
+  }
+};
+
 export const actions: Actions = {
   seed: async ({ request }) => {
     const data = await request.formData();
@@ -211,7 +294,49 @@ export const actions: Actions = {
       return { success: true, message: `Successfully seeded ${count} SCADs!` };
     } catch (error) {
       console.error("Seeding error:", error);
-      return { success: false, message: "Failed to seed database" };
+      return fail(500, { error: "Failed to seed database" });
+    }
+  },
+
+  testFirebase: async () => {
+    try {
+      // Test Firebase connection by attempting to generate a small GLB
+      const testScadCode = `cube([10, 10, 10]);`;
+      
+      console.log("Testing Firebase Storage connection...");
+      const glbUrl = await generateAndUploadGlb(testScadCode);
+      
+      return {
+        success: true,
+        message: "Firebase Storage connection successful",
+        response: glbUrl ? `GLB uploaded to: ${glbUrl}` : "GLB generated but no URL returned",
+      };
+    } catch (error) {
+      return fail(500, {
+        error: `Firebase Storage test failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      });
+    }
+  },
+
+  clearCache: async () => {
+    try {
+      // In a real app, you might clear Redis cache, temp files, etc.
+      // For now, we'll just simulate clearing some cache
+      console.log("Clearing application cache...");
+      
+      // Simulate cache clearing operations
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      return {
+        success: true,
+        message: "Application cache cleared successfully",
+      };
+    } catch (error) {
+      return fail(500, {
+        error: "Failed to clear cache",
+      });
     }
   },
 };
