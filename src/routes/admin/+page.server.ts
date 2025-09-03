@@ -1,9 +1,9 @@
 import type { Actions, PageServerLoad } from "./$types";
 import { fail } from "@sveltejs/kit";
 import { db } from "$lib/server/db";
-import { scads, users, scadPhotos, scadRatings } from "$lib/server/db/schema";
-import { count, desc, eq, sql, and } from "drizzle-orm";
-import JSZip from 'jszip';
+import { scadPhotos, scadRatings, scads, users } from "$lib/server/db/schema";
+import { and, count, desc, eq, sql } from "drizzle-orm";
+import JSZip from "jszip";
 
 type DatabaseRecord = Record<string, any>;
 
@@ -13,86 +13,86 @@ type BackupResult = {
 };
 
 async function convertToCSV(data: DatabaseRecord[]): Promise<string> {
-  if (data.length === 0) return '';
+  if (data.length === 0) return "";
   const headers = Object.keys(data[0]);
-  const headerRow = headers.join(',');
+  const headerRow = headers.join(",");
   const rows = data.map((row) => {
     return headers
       .map((header) => {
         let value = row[header];
         if (value === null || value === undefined) {
-          return '';
+          return "";
         }
         if (Array.isArray(value)) {
-          value = `"${value.join(';')}"`;
+          value = `"${value.join(";")}"`;
         }
         // Convert Date objects to ISO strings
         if (value instanceof Date) {
           value = value.toISOString();
         }
-        if (typeof value === 'string') {
+        if (typeof value === "string") {
           value = `"${value.replace(/"/g, '""')}"`;
         }
         return value;
       })
-      .join(',');
+      .join(",");
   });
-  return [headerRow, ...rows].join('\n');
+  return [headerRow, ...rows].join("\n");
 }
 
 async function backupDatabase(): Promise<BackupResult> {
   try {
-    console.log('🚀 Starting SCAD database backup...\n');
+    console.log("🚀 Starting SCAD database backup...\n");
 
     const zip = new JSZip();
 
     const now = new Date();
     const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-    const timestamp = localTime.toISOString().replace(/:/g, '-').split('.')[0];
+    const timestamp = localTime.toISOString().replace(/:/g, "-").split(".")[0];
 
     // Backup each table individually using schema objects
-    
+
     // Backup users table
-    console.log('Backing up users...');
+    console.log("Backing up users...");
     const usersData = await db.select().from(users);
     const usersCSV = await convertToCSV(usersData);
-    zip.file('users.csv', usersCSV);
+    zip.file("users.csv", usersCSV);
     console.log(`✓ Backed up ${usersData.length} records from users`);
 
     // Backup scads table
-    console.log('Backing up scads...');
+    console.log("Backing up scads...");
     const scadsData = await db.select().from(scads);
     const scadsCSV = await convertToCSV(scadsData);
-    zip.file('scads.csv', scadsCSV);
+    zip.file("scads.csv", scadsCSV);
     console.log(`✓ Backed up ${scadsData.length} records from scads`);
 
     // Backup scad_photos table
-    console.log('Backing up scad_photos...');
+    console.log("Backing up scad_photos...");
     const photosData = await db.select().from(scadPhotos);
     const photosCSV = await convertToCSV(photosData);
-    zip.file('scad_photos.csv', photosCSV);
+    zip.file("scad_photos.csv", photosCSV);
     console.log(`✓ Backed up ${photosData.length} records from scad_photos`);
 
     // Backup scad_ratings table
-    console.log('Backing up scad_ratings...');
+    console.log("Backing up scad_ratings...");
     const ratingsData = await db.select().from(scadRatings);
     const ratingsCSV = await convertToCSV(ratingsData);
-    zip.file('scad_ratings.csv', ratingsCSV);
+    zip.file("scad_ratings.csv", ratingsCSV);
     console.log(`✓ Backed up ${ratingsData.length} records from scad_ratings`);
 
     const zipBuffer = await zip.generateAsync({
-      type: 'nodebuffer',
-      compression: 'DEFLATE',
+      type: "nodebuffer",
+      compression: "DEFLATE",
       compressionOptions: {
-        level: 9
-      }
+        level: 9,
+      },
     });
 
-    console.log('\n✨ SCAD database backup completed successfully!');
+    console.log("\n✨ SCAD database backup completed successfully!");
     return { zipBuffer, timestamp };
   } catch (error) {
-    console.error('\n❌ SCAD database backup failed:', error);
-    console.error('Stack trace:', error instanceof Error ? error.stack : '');
+    console.error("\n❌ SCAD database backup failed:", error);
+    console.error("Stack trace:", error instanceof Error ? error.stack : "");
     throw error;
   }
 }
@@ -140,9 +140,13 @@ export const load: PageServerLoad = async () => {
     // Merge counts with SCAD data
     const scadsWithCounts = allScads.map((scad) => ({
       ...scad,
-      photoCount: photoCounts.find((pc) => pc.scadId === scad.id)?.photoCount || 0,
-      ratingCount: ratingCounts.find((rc) => rc.scadId === scad.id)?.ratingCount || 0,
-      avgRating: ratingCounts.find((rc) => rc.scadId === scad.id)?.avgRating || 0,
+      photoCount: photoCounts.find((pc) => pc.scadId === scad.id)?.photoCount ||
+        0,
+      ratingCount: ratingCounts.find((rc) =>
+        rc.scadId === scad.id
+      )?.ratingCount || 0,
+      avgRating: ratingCounts.find((rc) => rc.scadId === scad.id)?.avgRating ||
+        0,
     }));
 
     // System statistics
@@ -203,12 +207,12 @@ export const load: PageServerLoad = async () => {
     console.error("Error loading admin data:", error);
     return {
       scads: [],
-      stats: { 
-        totalScads: 0, 
-        totalUsers: 0, 
-        totalPhotos: 0, 
+      stats: {
+        totalScads: 0,
+        totalUsers: 0,
+        totalPhotos: 0,
         totalDownloads: 0,
-        scadsWithModels: 0 
+        scadsWithModels: 0,
       },
       activeUsers: [],
       mostDownloaded: [],
@@ -220,17 +224,17 @@ export const actions: Actions = {
   backup: async () => {
     try {
       const { zipBuffer, timestamp } = await backupDatabase();
-      const base64File = zipBuffer.toString('base64');
+      const base64File = zipBuffer.toString("base64");
 
       return {
         success: true,
         file: base64File,
         filename: `scad-backup-${timestamp}.zip`,
-        type: 'application/zip'
+        type: "application/zip",
       };
     } catch (err) {
-      console.error('Backup failed:', err);
-      return fail(500, { error: 'Failed to create backup' });
+      console.error("Backup failed:", err);
+      return fail(500, { error: "Failed to create backup" });
     }
   },
 
@@ -296,9 +300,9 @@ export const actions: Actions = {
         .set({ isPublic: !isPublic })
         .where(eq(scads.id, scadId));
 
-      return { 
-        success: true, 
-        message: `SCAD file is now ${!isPublic ? 'public' : 'private'}` 
+      return {
+        success: true,
+        message: `SCAD file is now ${!isPublic ? "public" : "private"}`,
       };
     } catch (error) {
       console.error("Error toggling SCAD visibility:", error);
@@ -377,7 +381,10 @@ export const actions: Actions = {
       // Finally delete the user
       await db.delete(users).where(eq(users.id, userId));
 
-      return { success: true, message: "User and all associated data deleted successfully" };
+      return {
+        success: true,
+        message: "User and all associated data deleted successfully",
+      };
     } catch (error) {
       console.error("Error deleting user:", error);
       return fail(500, { error: "Failed to delete user" });

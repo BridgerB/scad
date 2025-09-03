@@ -23,10 +23,13 @@ async function convertScadToGlbWithColor(
   // Step 1: Generate OFF file with colors using OpenSCAD with Manifold backend
   console.log("Generating OFF file with colors using OpenSCAD...");
   try {
-    const result = execSync(`openscad --backend=manifold -o ${tempOffPath} ${scadPath}`, {
-      stdio: "pipe",
-      encoding: "utf8"
-    });
+    const result = execSync(
+      `openscad --backend=manifold -o ${tempOffPath} ${scadPath}`,
+      {
+        stdio: "pipe",
+        encoding: "utf8",
+      },
+    );
     console.log(`Generated colored OFF file: ${tempOffPath}`);
     if (result) console.log("OpenSCAD output:", result);
   } catch (error: any) {
@@ -34,7 +37,9 @@ async function convertScadToGlbWithColor(
     console.error("OpenSCAD stderr:", error.stderr);
     console.error("OpenSCAD stdout:", error.stdout);
     throw new Error(
-      `OpenSCAD compilation failed: ${error.stderr || error.stdout || error.message || "Unknown error"}`,
+      `OpenSCAD compilation failed: ${
+        error.stderr || error.stdout || error.message || "Unknown error"
+      }`,
     );
   }
 

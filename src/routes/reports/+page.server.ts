@@ -1,7 +1,7 @@
 import type { PageServerLoad } from "./$types";
 import { db } from "$lib/server/db";
 import { scads, users } from "$lib/server/db/schema";
-import { count, desc, eq, sql, and } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 
 export const load: PageServerLoad = async () => {
   try {
@@ -58,7 +58,10 @@ export const load: PageServerLoad = async () => {
         totalDownloads: sql<number>`COALESCE(SUM(${scads.downloadCount}), 0)`,
       })
       .from(users)
-      .leftJoin(scads, and(eq(users.id, scads.userId), eq(scads.isPublic, true)))
+      .leftJoin(
+        scads,
+        and(eq(users.id, scads.userId), eq(scads.isPublic, true)),
+      )
       .groupBy(users.id, users.username)
       .orderBy(desc(count(scads.id)))
       .limit(10);
@@ -130,12 +133,12 @@ export const load: PageServerLoad = async () => {
       .select({ count: count() })
       .from(scads)
       .where(eq(scads.isPublic, true));
-    
+
     const totalUsers = await db.select({ count: count() }).from(users);
-    
+
     const totalDownloads = await db
-      .select({ 
-        total: sql<number>`COALESCE(SUM(${scads.downloadCount}), 0)`
+      .select({
+        total: sql<number>`COALESCE(SUM(${scads.downloadCount}), 0)`,
       })
       .from(scads)
       .where(eq(scads.isPublic, true));

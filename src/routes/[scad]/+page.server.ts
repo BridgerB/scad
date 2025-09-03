@@ -5,7 +5,7 @@ import { error } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { generateAndUploadGlb } from "$lib/server/glb-upload";
 import { convertScadToGlbWithColor } from "$lib/server/convert-scad-with-color";
-import { writeFileSync, mkdirSync, unlinkSync, readFileSync } from "fs";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import { dirname } from "path";
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -64,7 +64,6 @@ export const load: PageServerLoad = async ({ params }) => {
 
   const stats = ratingStats[0] || { likes: 0, dislikes: 0 };
 
-
   return {
     scad: {
       ...scad,
@@ -94,7 +93,8 @@ export const actions: Actions = {
       const tempId = Date.now();
       const tempScadPath = `/tmp/preview-${scadId}-${tempId}.scad`;
       const tempGlbPath = `/tmp/preview-${scadId}-${tempId}.glb`;
-      const previewGlbPath = `/home/bridger/git/scad/static/models/previews/${scadId}.glb`;
+      const previewGlbPath =
+        `/home/bridger/git/scad/static/models/previews/${scadId}.glb`;
 
       // Ensure preview directory exists
       mkdirSync(dirname(previewGlbPath), { recursive: true });
@@ -152,7 +152,7 @@ export const actions: Actions = {
 
     try {
       let newGlbUrl = null;
-      
+
       // Generate and upload new GLB file to Firebase
       try {
         console.log(`Saving GLB to Firebase for SCAD ${scadId}...`);
@@ -165,17 +165,17 @@ export const actions: Actions = {
 
       // Update the SCAD content and GLB URL in the database
       await db.update(scads)
-        .set({ 
+        .set({
           content: scadContent,
           glbUrl: newGlbUrl, // Update with new GLB URL (or keep existing if generation failed)
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(eq(scads.id, scadId));
 
       return {
         type: "success",
         data: {
-          message: newGlbUrl 
+          message: newGlbUrl
             ? "SCAD file saved and 3D model uploaded successfully"
             : "SCAD file saved successfully (3D model upload failed)",
           timestamp: Date.now(),

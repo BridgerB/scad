@@ -124,7 +124,9 @@ export const load: PageServerLoad = async () => {
     const scadTableSize = await db.select({ count: count() }).from(scads);
     const userTableSize = await db.select({ count: count() }).from(users);
     const photoTableSize = await db.select({ count: count() }).from(scadPhotos);
-    const ratingTableSize = await db.select({ count: count() }).from(scadRatings);
+    const ratingTableSize = await db.select({ count: count() }).from(
+      scadRatings,
+    );
 
     // Get recent database activity
     const recentScads = await db
@@ -302,14 +304,16 @@ export const actions: Actions = {
     try {
       // Test Firebase connection by attempting to generate a small GLB
       const testScadCode = `cube([10, 10, 10]);`;
-      
+
       console.log("Testing Firebase Storage connection...");
       const glbUrl = await generateAndUploadGlb(testScadCode);
-      
+
       return {
         success: true,
         message: "Firebase Storage connection successful",
-        response: glbUrl ? `GLB uploaded to: ${glbUrl}` : "GLB generated but no URL returned",
+        response: glbUrl
+          ? `GLB uploaded to: ${glbUrl}`
+          : "GLB generated but no URL returned",
       };
     } catch (error) {
       return fail(500, {
@@ -325,10 +329,10 @@ export const actions: Actions = {
       // In a real app, you might clear Redis cache, temp files, etc.
       // For now, we'll just simulate clearing some cache
       console.log("Clearing application cache...");
-      
+
       // Simulate cache clearing operations
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       return {
         success: true,
         message: "Application cache cleared successfully",
