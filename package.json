@@ -30,6 +30,7 @@
   "dependencies": {
     "@google/model-viewer": "^4.1.0",
     "drizzle-orm": "^0.40.0",
+    "echarts": "^6.0.0",
     "firebase-admin": "^13.5.0",
     "postgres": "^3.4.5"
   }
