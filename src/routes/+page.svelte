@@ -28,6 +28,10 @@
 		}
 	}
 
+	function navigateToScad(scadId) {
+		goto(`/${scadId}`);
+	}
+
 	// Extract GLB ID from Firebase Storage URL
 	function getGlbProxyUrl(glbUrl) {
 		if (!glbUrl) return null;
@@ -56,7 +60,7 @@
 
 	<div class="cards-grid">
 		{#each data.scads as scad}
-			<div class="card">
+			<div class="card" on:click={() => navigateToScad(scad.id)}>
 				<div class="model-container">
 					{#if browser && scad.glbUrl && getGlbProxyUrl(scad.glbUrl)}
 						<model-viewer
@@ -64,8 +68,9 @@
 							src="{getGlbProxyUrl(scad.glbUrl)}"
 							environment-image="/environments/default.hdr"
 							shadow-intensity="1"
-							camera-controls
 							auto-rotate
+							auto-rotate-delay="0"
+							rotation-per-second="60deg"
 							loading="lazy"
 							on:error={(event) => {
 								// Fallback to no-model state on error
@@ -82,7 +87,7 @@
 					{/if}
 				</div>
 				<div class="card-content">
-					<h3><a href="/{scad.id}">{scad.title}</a></h3>
+					<h3>{scad.title}</h3>
 					<p>{scad.description || 'No description'}</p>
 					<div class="card-meta">
 						<span>by {scad.username}</span>
@@ -194,6 +199,7 @@
 		overflow: hidden;
 		box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 		transition: transform 0.2s;
+		cursor: pointer;
 	}
 
 	.card:hover {
@@ -233,14 +239,6 @@
 		margin: 0 0 0.5rem 0;
 	}
 
-	.card-content h3 a {
-		text-decoration: none;
-		color: #333;
-	}
-
-	.card-content h3 a:hover {
-		color: #0066cc;
-	}
 
 	.card-content p {
 		color: #666;
