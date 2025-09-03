@@ -234,21 +234,6 @@ cylinder(h=20, r=8);
 
 			<!-- Preview Panel -->
 			<div class="preview-panel">
-				<div class="preview-header">
-					<h2>3D Preview</h2>
-					<div class="preview-status">
-						{#if isGeneratingPreview}
-							<span class="status generating">Generating preview...</span>
-						{:else if hasPreview && showDefaultPreview}
-							<span class="status ready">Default preview</span>
-						{:else if hasPreview}
-							<span class="status ready">Preview ready</span>
-						{:else}
-							<span class="status">Type code to see preview</span>
-						{/if}
-					</div>
-				</div>
-				
 				<div class="model-container">
 					{#if browser && hasPreview}
 						<model-viewer
@@ -417,33 +402,6 @@ cylinder(h=20, r=8);
 		flex-direction: column;
 	}
 
-	.preview-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem;
-		background: #f8f9fa;
-		border-bottom: 1px solid #ddd;
-	}
-
-	.preview-header h2 {
-		margin: 0;
-		font-size: 1.2rem;
-		color: #333;
-	}
-
-	.preview-status .status {
-		font-size: 0.9rem;
-		color: #666;
-	}
-
-	.preview-status .status.generating {
-		color: #007acc;
-	}
-
-	.preview-status .status.ready {
-		color: #28a745;
-	}
 
 	.model-container {
 		flex: 1;
@@ -492,12 +450,6 @@ cylinder(h=20, r=8);
 	@media (max-width: 768px) {
 		.container {
 			padding: 0.5rem;
-		}
-		
-		.preview-header {
-			flex-direction: column;
-			gap: 0.5rem;
-			text-align: center;
 		}
 	}
 </style>
