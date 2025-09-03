@@ -16,7 +16,7 @@
 	<header class="app-header">
 		<div class="header-container">
 			<a href="/" class="logo-link">
-				<h1>OpenSCAD Files</h1>
+				<h1>scad.bridgerb.com</h1>
 			</a>
 			
 			<nav class="main-nav">
