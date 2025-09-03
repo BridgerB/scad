@@ -51,7 +51,7 @@
 	<div class="create-section">
 		<a href="/create" class="create-button">
 			<span class="create-icon">+</span>
-			Create New SCAD File
+			ADD SCAD
 		</a>
 	</div>
 	
