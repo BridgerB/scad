@@ -9,13 +9,13 @@
 	let title = '';
 	let description = '';
 	let content = `// 1. Sphere
-sphere(10);
+// sphere(10);
 
 // 2. Cube
 // cube(15);
 
 // 3. Cylinder
-// cylinder(h=20, r=8);
+cylinder(h=20, r=8);
 
 // 4. Cone (cylinder with different top/bottom radii)
 // cylinder(h=15, r1=10, r2=0);
@@ -29,11 +29,13 @@ sphere(10);
 	let username = '';
 	let isSubmitting = false;
 	let modelViewer;
-	let hasPreview = false;
+	let hasPreview = true; // Start with default preview
+	let showDefaultPreview = true; // Show cylinder.glb initially
 	let isGeneratingPreview = false;
-	let lastPreviewContent = '';
+	let lastPreviewContent = content; // Initialize with default content to prevent initial generation
 	let editorView;
 	let editorContainer;
+	let isInitialized = false; // Track if editor is ready
 
 	onMount(async () => {
 		if (browser) {
@@ -66,15 +68,18 @@ sphere(10);
 			state: startState,
 			parent: editorContainer
 		});
+		
+		// Mark as initialized after setup
+		isInitialized = true;
 	}
 
-	// Generate preview when content changes (with debounce)
+	// Generate preview when content changes (with debounce) - but only after initialization
 	let previewTimeout;
-	$: if (content !== lastPreviewContent && content.trim()) {
+	$: if (isInitialized && content !== lastPreviewContent && content.trim()) {
 		clearTimeout(previewTimeout);
 		previewTimeout = setTimeout(() => {
 			generatePreview();
-		}, 1000); // 1 second debounce
+		}, 100); // .1 second debounce
 	}
 
 	async function generatePreview() {
@@ -93,6 +98,8 @@ sphere(10);
 			const result = await response.json();
 			
 			if (result.type === 'success') {
+				// Switch from default to generated preview
+				showDefaultPreview = false;
 				// Force reload the model viewer
 				if (modelViewer) {
 					modelViewer.src = `/models/previews/temp.glb?t=${Date.now()}`;
@@ -101,11 +108,17 @@ sphere(10);
 				lastPreviewContent = content;
 			} else {
 				console.error('Preview generation failed:', result.data?.error);
-				hasPreview = false;
+				// Keep showing default preview if generation fails
+				if (!showDefaultPreview) {
+					hasPreview = false;
+				}
 			}
 		} catch (error) {
 			console.error('Preview error:', error);
-			hasPreview = false;
+			// Keep showing default preview if error occurs
+			if (!showDefaultPreview) {
+				hasPreview = false;
+			}
 		} finally {
 			isGeneratingPreview = false;
 		}
@@ -226,6 +239,8 @@ sphere(10);
 					<div class="preview-status">
 						{#if isGeneratingPreview}
 							<span class="status generating">Generating preview...</span>
+						{:else if hasPreview && showDefaultPreview}
+							<span class="status ready">Default preview</span>
 						{:else if hasPreview}
 							<span class="status ready">Preview ready</span>
 						{:else}
@@ -239,7 +254,7 @@ sphere(10);
 						<model-viewer
 							bind:this={modelViewer}
 							alt="OpenSCAD 3D Model Preview"
-							src="/models/previews/temp.glb"
+							src="{showDefaultPreview ? '/models/cylinder.glb' : `/models/previews/temp.glb?t=${Date.now()}`}"
 							ar
 							environment-image="/environments/default.hdr"
 							shadow-intensity="1"
