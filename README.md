@@ -193,10 +193,6 @@ src/
 5. Push to your branch: `git push origin feature-name`
 6. Open a Pull Request
 
-## License
-
-This project is private and proprietary.
-
 ## Support
 
 For support or questions about this OpenSCAD sharing platform, please open an
