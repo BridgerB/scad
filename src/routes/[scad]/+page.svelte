@@ -168,6 +168,22 @@
 		URL.revokeObjectURL(url);
 	}
 
+	function downloadGlb() {
+		// Use the current preview blob if available, otherwise fallback to Firebase GLB
+		const glbSource = currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : null);
+		
+		if (glbSource) {
+			const a = document.createElement('a');
+			a.href = glbSource;
+			a.download = `${data.scad.title.replace(/[^a-zA-Z0-9]/g, '_')}.glb`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+		} else {
+			alert('No 3D model available for download. Try generating a preview first.');
+		}
+	}
+
 	// Extract GLB ID from Firebase Storage URL
 	function getGlbProxyUrl(glbUrl) {
 		if (!glbUrl) return null;
@@ -261,6 +277,9 @@
 				<button on:click={downloadScad} class="download-btn">
 					Download .scad file
 				</button>
+				<button on:click={downloadGlb} class="download-btn">
+					Download .glb file
+				</button>
 			</div>
 		</div>
 		
@@ -272,28 +291,21 @@
 				{/if}
 				
 				{#if browser}
-					{#if modelError}
-						<div class="model-error">
-							<p>3D model failed to load</p>
-							<p class="error-hint">Try modifying the code to regenerate the model</p>
-						</div>
-					{:else}
-						<model-viewer
-							bind:this={modelViewer}
-							alt="OpenSCAD 3D Model Preview"
-							src="{useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : '')}"
-							ar
-							environment-image="/environments/default.hdr"
-							shadow-intensity="1"
-							camera-controls
-							touch-action="pan-y"
-							auto-rotate
-							exposure="1"
-							skybox-image="/environments/default.hdr"
-							loading="lazy"
-							on:error={handleModelError}
-						></model-viewer>
-					{/if}
+					<model-viewer
+						bind:this={modelViewer}
+						alt="OpenSCAD 3D Model Preview"
+						src="{modelError ? '/models/error/error.glb' : (useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : ''))}"
+						ar
+						environment-image="/environments/default.hdr"
+						shadow-intensity="1"
+						camera-controls
+						touch-action="pan-y"
+						auto-rotate
+						exposure="1"
+						skybox-image="/environments/default.hdr"
+						loading="lazy"
+						on:error={handleModelError}
+					></model-viewer>
 				{:else}
 					<div class="loading">Loading 3D viewer...</div>
 				{/if}
@@ -512,27 +524,6 @@
 		background-color: #eee;
 	}
 
-	.model-error {
-		width: 100%;
-		height: 100%;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		background-color: #f8d7da;
-		border: 1px solid #f5c6cb;
-		color: #721c24;
-		text-align: center;
-	}
-
-	.model-error p {
-		margin: 0.5rem 0;
-	}
-
-	.error-hint {
-		font-size: 0.9rem;
-		color: #856404;
-	}
 
 	/* Bottom Section */
 	.bottom-section {

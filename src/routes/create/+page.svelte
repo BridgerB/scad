@@ -289,28 +289,21 @@ cylinder(h=20, r=8);
 					{/if}
 					
 					{#if browser}
-						{#if modelError}
-							<div class="model-error">
-								<p>3D model failed to load</p>
-								<p class="error-hint">Try modifying the code to regenerate the model</p>
-							</div>
-						{:else}
-							<model-viewer
-								bind:this={modelViewer}
-								alt="OpenSCAD 3D Model Preview"
-								src="{currentPreviewBlob || '/models/cylinder.glb'}"
-								ar
-								environment-image="/environments/default.hdr"
-								shadow-intensity="1"
-								camera-controls
-								touch-action="pan-y"
-								auto-rotate
-								exposure="1"
-								skybox-image="/environments/default.hdr"
-								loading="lazy"
-								on:error={handleModelError}
-							></model-viewer>
-						{/if}
+						<model-viewer
+							bind:this={modelViewer}
+							alt="OpenSCAD 3D Model Preview"
+							src="{modelError ? '/models/error/error.glb' : (currentPreviewBlob || '/models/cylinder.glb')}"
+							ar
+							environment-image="/environments/default.hdr"
+							shadow-intensity="1"
+							camera-controls
+							touch-action="pan-y"
+							auto-rotate
+							exposure="1"
+							skybox-image="/environments/default.hdr"
+							loading="lazy"
+							on:error={handleModelError}
+						></model-viewer>
 					{:else}
 						<div class="loading">Loading 3D viewer...</div>
 					{/if}
@@ -487,27 +480,6 @@ cylinder(h=20, r=8);
 		background-color: #eee;
 	}
 
-	.model-error {
-		width: 100%;
-		height: 100%;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		background-color: #f8d7da;
-		border: 1px solid #f5c6cb;
-		color: #721c24;
-		text-align: center;
-	}
-
-	.model-error p {
-		margin: 0.5rem 0;
-	}
-
-	.error-hint {
-		font-size: 0.9rem;
-		color: #856404;
-	}
 
 	.loading, .no-preview {
 		width: 100%;
