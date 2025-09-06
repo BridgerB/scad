@@ -9,30 +9,30 @@ runConfig:
 
 # Environment variables and secrets.
 env:
-# Configure environment variables.
-# See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
-- variable: DATABASE_URL
-  secret: DATABASE_URL
-  availability:
-    - BUILD
-    - RUNTIME
+  # Configure environment variables.
+  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
+  - variable: DATABASE_URL
+    secret: DATABASE_URL
+    availability:
+      - BUILD
+      - RUNTIME
 
-- variable: FIREBASE_SERVICE_ACCOUNT_KEY
-  secret: FIREBASE_SERVICE_ACCOUNT_KEY
-  availability:
-    - RUNTIME
+  - variable: FIREBASE_SERVICE_ACCOUNT_KEY
+    secret: FIREBASE_SERVICE_ACCOUNT_KEY
+    availability:
+      - RUNTIME
 
-- variable: OPENSCAD_API_URL
-  secret: OPENSCAD_API_URL
-  availability:
-    - RUNTIME
+  - variable: OPENSCAD_API_URL
+    secret: OPENSCAD_API_URL
+    availability:
+      - RUNTIME
 
-- variable: OPENSCAD_API_KEY
-  secret: OPENSCAD_API_KEY
-  availability:
-    - RUNTIME
+  - variable: OPENSCAD_API_KEY
+    secret: OPENSCAD_API_KEY
+    availability:
+      - RUNTIME
 
-# Grant access to secrets in Cloud Secret Manager.
-# See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
-# - variable: MY_SECRET
-#   secret: mySecretRef
+  # Grant access to secrets in Cloud Secret Manager.
+  # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
+  # - variable: MY_SECRET
+  #   secret: mySecretRef

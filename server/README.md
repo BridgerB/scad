@@ -1,22 +1,27 @@
 # OpenSCAD Conversion API Server
 
-Express.js API server that converts OpenSCAD code to GLB format using the openscad-playground utilities.
+Express.js API server that converts OpenSCAD code to GLB format using the
+openscad-playground utilities.
 
 ## Setup
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
 2. Make sure OpenSCAD is installed and available in PATH:
+
 ```bash
 openscad --version
 ```
 
-3. Ensure openscad-playground project is available at `/home/ubuntu/git/openscad-playground/`
+3. Ensure openscad-playground project is available at
+   `/home/ubuntu/git/openscad-playground/`
 
 4. Configure environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env and set your API_KEY
@@ -40,11 +45,13 @@ Server runs on port 3001 by default (or PORT environment variable).
 ## API Usage
 
 ### Health Check
+
 ```bash
 curl http://localhost:3001/health
 ```
 
 ### Convert SCAD to GLB
+
 ```bash
 curl -X POST http://localhost:3001/api/convert-scad \
   -H "Content-Type: application/json" \
@@ -53,6 +60,7 @@ curl -X POST http://localhost:3001/api/convert-scad \
 ```
 
 ### Response Format
+
 ```json
 {
   "success": true,
@@ -70,7 +78,7 @@ curl -X POST http://localhost:3001/api/convert-scad \
 ## Security
 
 - API requires `x-api-key` header (set via environment variable)
-- CORS enabled for cross-origin requests  
+- CORS enabled for cross-origin requests
 - 10MB request size limit
 - 30 second timeout for OpenSCAD compilation
 

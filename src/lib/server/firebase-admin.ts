@@ -10,11 +10,16 @@ if (!building) {
   try {
     // Check if we have the service account key as environment variable
     if (!env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set");
+      throw new Error(
+        "FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set",
+      );
     }
 
     // Decode base64-encoded service account JSON
-    const serviceAccountJson = Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8');
+    const serviceAccountJson = Buffer.from(
+      env.FIREBASE_SERVICE_ACCOUNT_KEY,
+      "base64",
+    ).toString("utf8");
     const serviceAccount = JSON.parse(serviceAccountJson);
 
     firebaseApp = admin.initializeApp({
