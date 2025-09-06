@@ -171,12 +171,6 @@
         <p class="tool-desc">Verify Firebase Storage connection and GLB generation</p>
       </form>
 
-      <form method="POST" action="?/clearCache" use:enhance>
-        <button type="submit" class="tool-btn warning">
-          🧹 Clear Cache
-        </button>
-        <p class="tool-desc">Clear application cache and temporary files</p>
-      </form>
     </div>
   </div>
 
@@ -241,9 +235,6 @@
       </a>
       <a href="/reports" class="link-card">
         📊 Analytics Reports
-      </a>
-      <a href="/3d" class="link-card">
-        🎯 3D Viewer
       </a>
     </div>
   </div>

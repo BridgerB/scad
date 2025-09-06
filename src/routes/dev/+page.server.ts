@@ -324,23 +324,4 @@ export const actions: Actions = {
     }
   },
 
-  clearCache: async () => {
-    try {
-      // In a real app, you might clear Redis cache, temp files, etc.
-      // For now, we'll just simulate clearing some cache
-      console.log("Clearing application cache...");
-
-      // Simulate cache clearing operations
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      return {
-        success: true,
-        message: "Application cache cleared successfully",
-      };
-    } catch (error) {
-      return fail(500, {
-        error: "Failed to clear cache",
-      });
-    }
-  },
 };
