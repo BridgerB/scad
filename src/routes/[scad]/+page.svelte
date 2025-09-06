@@ -400,6 +400,7 @@
 		border-radius: 8px;
 		border: 1px solid #ddd;
 		overflow: hidden;
+		min-width: 0; /* Allow flexbox shrinking */
 	}
 
 	.editor-footer {
@@ -472,10 +473,12 @@
 		font-size: 14px;
 		line-height: 1.5;
 		overflow: hidden;
+		max-width: 100%; /* Prevent horizontal overflow */
 	}
 
 	.code-editor :global(.cm-editor) {
 		height: 100%;
+		max-width: 100%; /* Constrain editor width */
 		font-size: 14px;
 		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 	}
@@ -489,6 +492,7 @@
 		background: #f5f5f5;
 		position: relative;
 		min-height: 500px;
+		max-height: 70vh; /* Limit height on desktop to prevent excessive vertical space */
 	}
 
 	model-viewer {
@@ -595,6 +599,10 @@
 		
 		.info-cards {
 			grid-template-columns: 1fr;
+		}
+		
+		.model-container {
+			max-height: none; /* Remove height restriction on mobile/tablet */
 		}
 	}
 

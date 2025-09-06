@@ -346,6 +346,8 @@ cylinder(h=20, r=8);
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
+		min-width: 0; /* Allow flexbox shrinking */
+		overflow: hidden; /* Prevent content from breaking out */
 	}
 
 	.form-group {
@@ -379,11 +381,13 @@ cylinder(h=20, r=8);
 		border-radius: 4px;
 		overflow: hidden;
 		min-height: 400px;
+		max-width: 100%; /* Prevent horizontal overflow */
 		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 	}
 
 	.code-editor-container :global(.cm-editor) {
 		min-height: 400px;
+		max-width: 100%; /* Constrain editor width */
 		font-size: 14px;
 		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 	}
@@ -445,6 +449,7 @@ cylinder(h=20, r=8);
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
+		min-width: 0; /* Allow flexbox shrinking */
 	}
 
 
@@ -453,6 +458,7 @@ cylinder(h=20, r=8);
 		background: #f5f5f5;
 		position: relative;
 		min-height: 500px;
+		max-height: 70vh; /* Limit height on desktop to prevent excessive vertical space */
 	}
 
 	.status-overlay {
@@ -508,6 +514,7 @@ cylinder(h=20, r=8);
 
 		.model-container {
 			min-height: 300px;
+			max-height: none; /* Remove height restriction on mobile/tablet */
 		}
 	}
 
