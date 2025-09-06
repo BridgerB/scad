@@ -1,0 +1,7 @@
+[Unit]
+Description=Restart OpenSCAD API Service
+Requires=openscad-api.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart openscad-api.service

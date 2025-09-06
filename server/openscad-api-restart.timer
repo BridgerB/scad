@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily restart of OpenSCAD API at 9am UTC
+Requires=openscad-api-restart.service
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=OpenSCAD Conversion API Server
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=ubuntu
+WorkingDirectory=/home/ubuntu/server
+ExecStart=/usr/bin/npm run start
+Environment=NODE_ENV=production
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=openscad-api
+
+[Install]
+WantedBy=multi-user.target
