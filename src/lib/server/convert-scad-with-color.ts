@@ -3,12 +3,12 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { OPENSCAD_API_URL, OPENSCAD_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 // API client for OpenSCAD conversion service
 async function convertScadToGlbViaApi(scadContent: string): Promise<Buffer> {
-  const apiUrl = OPENSCAD_API_URL;
-  const apiKey = OPENSCAD_API_KEY;
+  const apiUrl = env.OPENSCAD_API_URL;
+  const apiKey = env.OPENSCAD_API_KEY;
 
   if (!apiUrl || !apiKey) {
     throw new Error("OPENSCAD_API_URL and OPENSCAD_API_KEY environment variables are required");
