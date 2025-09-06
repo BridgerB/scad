@@ -68,44 +68,65 @@
 		
 		isUpdating = true;
 		try {
-			const formData = new FormData();
-			formData.append('scadContent', scadContent);
-			formData.append('scadId', data.scad.id);
-			
-			const response = await fetch('?/updateScad', {
+			const response = await fetch('/api/preview-glb', {
 				method: 'POST',
-				body: formData
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					scadContent: scadContent,
+					scadId: data.scad.id
+				})
 			});
 			
 			const result = await response.json();
 			
-			if (result.type === 'success') {
+			if (result.success) {
 				// Convert base64 GLB data to blob and create object URL
-				const glbBuffer = Uint8Array.from(atob(result.data.glbData), c => c.charCodeAt(0));
-				
-				// Clean up previous blob URL
-				if (currentPreviewBlob) {
-					URL.revokeObjectURL(currentPreviewBlob);
-				}
-				
-				// Create new blob and URL
-				const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
-				currentPreviewBlob = URL.createObjectURL(glbBlob);
-				
-				// Update model viewer with new preview
-				modelUpdateTime = Date.now();
-				useFirebaseModel = false; // Use in-memory preview
-				modelError = false;
-				lastUpdate = new Date().toLocaleTimeString();
-				lastProcessedContent = scadContent;
-				
-				// Update model viewer immediately
-				if (modelViewer) {
-					console.log('Updating model-viewer with in-memory GLB preview');
-					modelViewer.src = currentPreviewBlob;
+				try {
+					// Debug: check the structure of the response
+					console.log('Server response:', result);
+					
+					const glbData = result.glbData;
+					if (!glbData) {
+						throw new Error('No GLB data in response');
+					}
+					
+					// Clean the base64 string and decode properly
+					const cleanBase64 = glbData.replace(/\s/g, '');
+					const binaryString = atob(cleanBase64);
+					const glbBuffer = new Uint8Array(binaryString.length);
+					for (let i = 0; i < binaryString.length; i++) {
+						glbBuffer[i] = binaryString.charCodeAt(i);
+					}
+					
+					// Clean up previous blob URL
+					if (currentPreviewBlob) {
+						URL.revokeObjectURL(currentPreviewBlob);
+					}
+					
+					// Create new blob and URL
+					const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
+					currentPreviewBlob = URL.createObjectURL(glbBlob);
+					
+					// Update model viewer with new preview
+					modelUpdateTime = Date.now();
+					useFirebaseModel = false; // Use in-memory preview
+					modelError = false;
+					lastUpdate = new Date().toLocaleTimeString();
+					lastProcessedContent = scadContent;
+					
+					// Update model viewer immediately
+					if (modelViewer) {
+						console.log('Updating model-viewer with in-memory GLB preview');
+						modelViewer.src = currentPreviewBlob;
+					}
+				} catch (decodeError) {
+					console.error('Failed to decode GLB data:', decodeError);
+					modelError = true;
 				}
 			} else {
-				console.error('Update failed:', result.data?.error);
+				console.error('Update failed:', result.error);
 				modelError = true;
 			}
 		} catch (error) {

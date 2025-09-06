@@ -117,7 +117,7 @@ export const actions: Actions = {
     if (!scadContent || !scadId) {
       return {
         type: "error",
-        data: { error: "No SCAD content or ID provided" },
+        error: "No SCAD content or ID provided",
       };
     }
 
@@ -133,21 +133,17 @@ export const actions: Actions = {
 
       return {
         type: "success",
-        data: {
-          message: "3D model preview updated",
-          glbData: glbBase64,
-          timestamp: Date.now(),
-        },
+        message: "3D model preview updated",
+        glbData: glbBase64,
+        timestamp: Date.now(),
       };
     } catch (error) {
       console.error("Error updating SCAD preview:", error);
       return {
         type: "error",
-        data: {
-          error: `Failed to update preview: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-        },
+        error: `Failed to update preview: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       };
     }
   },
