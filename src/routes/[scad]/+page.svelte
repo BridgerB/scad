@@ -119,7 +119,15 @@
 					// Update model viewer immediately
 					if (modelViewer) {
 						console.log('Updating model-viewer with in-memory GLB preview');
+						console.log('Blob URL:', currentPreviewBlob);
 						modelViewer.src = currentPreviewBlob;
+						// Force refresh
+						modelViewer.addEventListener('load', () => {
+							console.log('Model loaded successfully!');
+						});
+						modelViewer.addEventListener('error', (e) => {
+							console.error('Model load error:', e);
+						});
 					}
 				} catch (decodeError) {
 					console.error('Failed to decode GLB data:', decodeError);

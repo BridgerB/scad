@@ -22,6 +22,16 @@ env:
   availability:
     - RUNTIME
 
+- variable: OPENSCAD_API_URL
+  secret: OPENSCAD_API_URL
+  availability:
+    - RUNTIME
+
+- variable: OPENSCAD_API_KEY
+  secret: OPENSCAD_API_KEY
+  availability:
+    - RUNTIME
+
 # Grant access to secrets in Cloud Secret Manager.
 # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
 # - variable: MY_SECRET
