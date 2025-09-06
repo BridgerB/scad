@@ -1,29 +1,35 @@
 import admin from "firebase-admin";
-import { readFileSync } from "fs";
+import { env } from "$env/dynamic/private";
+import { building } from "$app/environment";
 
 // Initialize Firebase Admin SDK
-let firebaseApp: admin.app.App;
+let firebaseApp: admin.app.App | null = null;
 
-try {
-  const serviceAccount = JSON.parse(
-    readFileSync(
-      "/home/bridger/git/scad/src/lib/server/firebase-admin-key.json",
-      "utf8",
-    ),
-  );
+// Don't initialize during build process
+if (!building) {
+  try {
+    // Check if we have the service account key as environment variable
+    if (!env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set");
+    }
 
-  firebaseApp = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: "scad-bridgerb-com.firebasestorage.app",
-  });
+    // Decode base64-encoded service account JSON
+    const serviceAccountJson = Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_KEY, 'base64').toString('utf8');
+    const serviceAccount = JSON.parse(serviceAccountJson);
 
-  console.log("Firebase Admin initialized successfully");
-} catch (error) {
-  console.error("Failed to initialize Firebase Admin:", error);
-  throw error;
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: "scad-bridgerb-com.firebasestorage.app",
+    });
+
+    console.log("Firebase Admin initialized successfully");
+  } catch (error) {
+    console.error("Failed to initialize Firebase Admin:", error);
+    throw error;
+  }
 }
 
-export const storage = firebaseApp.storage();
-export const bucket = storage.bucket();
+export const storage = firebaseApp?.storage();
+export const bucket = storage?.bucket();
 
 export default firebaseApp;
