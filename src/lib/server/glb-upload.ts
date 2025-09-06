@@ -1,29 +1,70 @@
-import { readFileSync, unlinkSync, writeFileSync } from "fs";
+// API-based GLB generation and upload - no file system operations needed
 import { bucket } from "./firebase-admin";
-import { convertScadToGlbWithColor } from "./convert-scad-with-color";
 import { randomUUID } from "crypto";
+import { OPENSCAD_API_URL, OPENSCAD_API_KEY } from '$env/static/private';
+
+// API client for OpenSCAD conversion service
+async function convertScadToGlbViaApi(scadContent: string): Promise<Buffer> {
+  const apiUrl = OPENSCAD_API_URL;
+  const apiKey = OPENSCAD_API_KEY;
+
+  if (!apiUrl || !apiKey) {
+    throw new Error("OPENSCAD_API_URL and OPENSCAD_API_KEY environment variables are required");
+  }
+
+  console.log(`\n=== API GLB Upload: SCAD to GLB Conversion Started ===`);
+  console.log(`API Endpoint: ${apiUrl}`);
+  console.log(`SCAD content length: ${scadContent.length} characters`);
+  console.log(`SCAD content preview (first 100 chars): ${scadContent.substring(0, 100)}...`);
+
+  try {
+    const response = await fetch(`${apiUrl}/api/convert-scad`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        scadContent: scadContent
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorData}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.success || !result.glbData) {
+      throw new Error(`API conversion failed: ${result.error || 'Unknown error'}`);
+    }
+
+    console.log(`API conversion successful: ${result.metadata.glbSize} bytes`);
+
+    // Decode base64 GLB data
+    const glbBuffer = Buffer.from(result.glbData, 'base64');
+    console.log(`Decoded GLB buffer: ${glbBuffer.length} bytes`);
+    console.log(`=== API GLB Upload: SCAD to GLB Conversion Complete ===\n`);
+
+    return glbBuffer;
+
+  } catch (error) {
+    console.error("API conversion failed:", error);
+    throw new Error(`OpenSCAD API conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
 
 export async function generateAndUploadGlb(
   scadContent: string,
 ): Promise<string> {
-  const tempId = Date.now().toString();
   const glbId = randomUUID();
 
-  // Create temporary SCAD file
-  const tempScadPath = `/tmp/temp-${tempId}.scad`;
-  const tempGlbPath = `/tmp/temp-${tempId}.glb`;
-
   try {
-    // Write SCAD content to temporary file with proper encoding
-    writeFileSync(tempScadPath, scadContent, "utf8");
-    console.log(`Written SCAD content to: ${tempScadPath}`);
-    console.log(`SCAD content preview: ${scadContent.substring(0, 100)}...`);
+    console.log(`Generating GLB for upload: ${scadContent.substring(0, 100)}...`);
 
-    // Convert SCAD to GLB using existing utility
-    await convertScadToGlbWithColor(tempScadPath, tempGlbPath);
-
-    // Read the generated GLB file
-    const glbBuffer = readFileSync(tempGlbPath);
+    // Convert SCAD to GLB using API
+    const glbBuffer = await convertScadToGlbViaApi(scadContent);
 
     // Upload to Firebase Storage
     const fileName = `scads/${glbId}.glb`;
@@ -51,18 +92,6 @@ export async function generateAndUploadGlb(
   } catch (error) {
     console.error("Failed to generate or upload GLB:", error);
     throw error;
-  } finally {
-    // Clean up temporary files
-    try {
-      unlinkSync(tempScadPath);
-    } catch (e) {
-      console.warn("Could not clean up temp SCAD file:", tempScadPath);
-    }
-
-    try {
-      unlinkSync(tempGlbPath);
-    } catch (e) {
-      console.warn("Could not clean up temp GLB file:", tempGlbPath);
-    }
   }
+  // No temporary file cleanup needed since we use API directly
 }

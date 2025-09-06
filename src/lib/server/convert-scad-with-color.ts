@@ -1,87 +1,98 @@
 #!/usr/bin/env tsx
 
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { dirname } from "path";
-import { execSync } from "child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
-// Import the conversion utilities from openscad-playground project
-import { parseOff } from "/home/bridger/git/openscad-playground/src/io/import_off.ts";
-import { exportGlb } from "/home/bridger/git/openscad-playground/src/io/export_glb.ts";
+import { OPENSCAD_API_URL, OPENSCAD_API_KEY } from '$env/static/private';
+
+// API client for OpenSCAD conversion service
+async function convertScadToGlbViaApi(scadContent: string): Promise<Buffer> {
+  const apiUrl = OPENSCAD_API_URL;
+  const apiKey = OPENSCAD_API_KEY;
+
+  if (!apiUrl || !apiKey) {
+    throw new Error("OPENSCAD_API_URL and OPENSCAD_API_KEY environment variables are required");
+  }
+
+  console.log(`\n=== API SCAD to GLB Conversion Started ===`);
+  console.log(`API Endpoint: ${apiUrl}`);
+  console.log(`SCAD content length: ${scadContent.length} characters`);
+  console.log(`SCAD content preview (first 200 chars):`);
+  console.log(`"${scadContent.substring(0, 200)}${scadContent.length > 200 ? '...' : ''}"`);
+
+  try {
+    const response = await fetch(`${apiUrl}/api/convert-scad`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        scadContent: scadContent
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorData}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.success || !result.glbData) {
+      throw new Error(`API conversion failed: ${result.error || 'Unknown error'}`);
+    }
+
+    console.log(`API conversion successful:`);
+    console.log(`- Vertices: ${result.metadata.vertices}`);
+    console.log(`- Faces: ${result.metadata.faces}`);
+    console.log(`- Colors: ${result.metadata.colors}`);
+    console.log(`- GLB size: ${result.metadata.glbSize} bytes`);
+
+    // Decode base64 GLB data
+    const glbBuffer = Buffer.from(result.glbData, 'base64');
+    console.log(`Decoded GLB buffer: ${glbBuffer.length} bytes`);
+    console.log(`=== API SCAD to GLB Conversion Complete ===\n`);
+
+    return glbBuffer;
+
+  } catch (error) {
+    console.error("API conversion failed:", error);
+    throw new Error(`OpenSCAD API conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
 
 async function convertScadToGlbWithColor(
   scadPath = "/home/bridger/git/scad/static/models/generated/output.scad",
   customOutputPath?: string,
 ) {
-  // Use unique temporary file paths to avoid conflicts
-  const tempId = Date.now().toString() + Math.random().toString(36);
-  const tempOffPath = `/tmp/output-color-${tempId}.off`;
   const outputGlbPath = customOutputPath ||
     "/home/bridger/git/scad/static/models/generated/output.glb";
 
-  console.log(`Converting SCAD with colors: ${scadPath}`);
-
-  // Step 1: Generate OFF file with colors using OpenSCAD with Manifold backend
-  console.log("Generating OFF file with colors using OpenSCAD...");
+  console.log(`\n=== SCAD to GLB Conversion Started ===`);
+  console.log(`Converting SCAD file: ${scadPath}`);
+  console.log(`Output path: ${outputGlbPath}`);
+  
   try {
-    const result = execSync(
-      `openscad --backend=manifold -o ${tempOffPath} ${scadPath}`,
-      {
-        stdio: "pipe",
-        encoding: "utf8",
-      },
-    );
-    console.log(`Generated colored OFF file: ${tempOffPath}`);
-    if (result) console.log("OpenSCAD output:", result);
-  } catch (error: any) {
-    console.error("Failed to generate OFF file:", error);
-    console.error("OpenSCAD stderr:", error.stderr);
-    console.error("OpenSCAD stdout:", error.stdout);
-    throw new Error(
-      `OpenSCAD compilation failed: ${
-        error.stderr || error.stdout || error.message || "Unknown error"
-      }`,
-    );
-  }
+    // Read SCAD content from file
+    const scadContent = readFileSync(scadPath, "utf-8");
+    console.log(`Read SCAD file: ${scadContent.length} characters`);
 
-  // Step 2: Parse the OFF file
-  console.log("Parsing OFF file...");
-  const offContent = readFileSync(tempOffPath, "utf-8");
-  const polyhedron = parseOff(offContent);
+    // Convert via API
+    const glbBuffer = await convertScadToGlbViaApi(scadContent);
 
-  console.log(
-    `Parsed OFF: ${polyhedron.vertices.length} vertices, ${polyhedron.faces.length} faces, ${polyhedron.colors.length} colors`,
-  );
+    // Ensure output directory exists and write GLB file
+    console.log(`\n--- Writing GLB file ---`);
+    console.log(`Creating output directory: ${dirname(outputGlbPath)}`);
+    mkdirSync(dirname(outputGlbPath), { recursive: true });
+    writeFileSync(outputGlbPath, glbBuffer);
 
-  // Step 2.5: Fix coordinate system (OpenSCAD Z-up to GLB Y-up) + flip upside down
-  console.log("Applying coordinate system transformation...");
-  const transformedPolyhedron = {
-    vertices: polyhedron.vertices.map((vertex) => ({
-      x: vertex.x, // X stays the same
-      y: vertex.z, // Y = Z (was -Z, now flipped)
-      z: -vertex.y, // Z = -Y (was Y, now flipped)
-    })),
-    faces: polyhedron.faces,
-    colors: polyhedron.colors,
-  };
+    console.log(`Successfully converted to ${outputGlbPath} (${glbBuffer.length} bytes)`);
+    console.log(`=== SCAD to GLB Conversion Complete ===\n`);
 
-  // Step 3: Convert to GLB
-  console.log("Converting to GLB format...");
-  const glbBlob = await exportGlb(transformedPolyhedron);
-  const glbBuffer = Buffer.from(await glbBlob.arrayBuffer());
-
-  // Step 4: Ensure output directory exists and write GLB file
-  mkdirSync(dirname(outputGlbPath), { recursive: true });
-  writeFileSync(outputGlbPath, glbBuffer);
-
-  console.log(
-    `Successfully converted to ${outputGlbPath} (${glbBuffer.length} bytes)`,
-  );
-
-  // Clean up temporary file
-  try {
-    execSync(`rm ${tempOffPath}`);
   } catch (error) {
-    console.warn("Could not clean up temp file:", tempOffPath);
+    console.error("Conversion failed:", error);
+    throw error;
   }
 }
 
