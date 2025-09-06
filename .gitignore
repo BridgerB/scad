@@ -30,3 +30,6 @@ static/models/generated/output.glb
 src/lib/server/firebase-admin-key.json
 static/models/previews/*
 firebase-debug.log
+
+ai/
+
