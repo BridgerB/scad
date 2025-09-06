@@ -5,8 +5,6 @@ import { error } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { generateAndUploadGlb } from "$lib/server/glb-upload";
 import { convertScadToGlbWithColor } from "$lib/server/convert-scad-with-color";
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
-import { dirname } from "path";
 
 export const load: PageServerLoad = async ({ params }) => {
   const scadId = params.scad;
@@ -74,8 +72,43 @@ export const load: PageServerLoad = async ({ params }) => {
   };
 };
 
+// In-memory GLB conversion function
+async function convertScadToGlbViaApi(scadContent: string): Promise<Buffer> {
+  const { env } = await import('$env/dynamic/private');
+  const apiUrl = env.OPENSCAD_API_URL;
+  const apiKey = env.OPENSCAD_API_KEY;
+
+  if (!apiUrl || !apiKey) {
+    throw new Error("OPENSCAD_API_URL and OPENSCAD_API_KEY environment variables are required");
+  }
+
+  console.log(`API GLB conversion for ${scadContent.length} characters of SCAD`);
+
+  const response = await fetch(`${apiUrl}/api/convert-scad`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+    },
+    body: JSON.stringify({ scadContent }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorData}`);
+  }
+
+  const result = await response.json();
+  
+  if (!result.success || !result.glbData) {
+    throw new Error(`API conversion failed: ${result.error || 'Unknown error'}`);
+  }
+
+  return Buffer.from(result.glbData, 'base64');
+}
+
 export const actions: Actions = {
-  // Live update action - generates local GLB for preview
+  // Live update action - generates GLB in memory and returns it directly
   updateScad: async ({ request }) => {
     const data = await request.formData();
     const scadContent = data.get("scadContent") as string;
@@ -89,38 +122,20 @@ export const actions: Actions = {
     }
 
     try {
-      // Create temporary files in /tmp for preview
-      const tempId = Date.now();
-      const tempScadPath = `/tmp/preview-${scadId}-${tempId}.scad`;
-      const tempGlbPath = `/tmp/preview-${scadId}-${tempId}.glb`;
-      const previewGlbPath =
-        `/home/bridger/git/scad/static/models/previews/${scadId}.glb`;
-
-      // Ensure preview directory exists
-      mkdirSync(dirname(previewGlbPath), { recursive: true });
-
-      // Write the SCAD content to temp file
-      writeFileSync(tempScadPath, scadContent, "utf-8");
-
-      // Convert to GLB using our conversion function
-      await convertScadToGlbWithColor(tempScadPath, tempGlbPath);
-
-      // Copy the generated GLB to preview location
-      const glbBuffer = readFileSync(tempGlbPath);
-      writeFileSync(previewGlbPath, glbBuffer);
-
-      // Clean up temporary files
-      try {
-        unlinkSync(tempScadPath);
-        unlinkSync(tempGlbPath);
-      } catch (cleanupError) {
-        console.warn("Could not clean up temp files:", cleanupError);
-      }
+      // Convert SCAD to GLB in memory only (no file system operations)
+      console.log(`Generating in-memory GLB preview for SCAD ${scadId}...`);
+      const glbBuffer = await convertScadToGlbViaApi(scadContent);
+      
+      // Convert buffer to base64 for transport
+      const glbBase64 = glbBuffer.toString('base64');
+      
+      console.log(`Successfully generated ${glbBuffer.length} byte GLB preview`);
 
       return {
         type: "success",
         data: {
           message: "3D model preview updated",
+          glbData: glbBase64,
           timestamp: Date.now(),
         },
       };

@@ -1,5 +1,5 @@
 <script>
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
 	export let data;
@@ -19,6 +19,13 @@
 		if (browser) {
 			await import('@google/model-viewer');
 			await setupCodeMirror();
+		}
+	});
+
+	onDestroy(() => {
+		// Clean up blob URL to prevent memory leaks
+		if (currentPreviewBlob) {
+			URL.revokeObjectURL(currentPreviewBlob);
 		}
 	});
 
@@ -48,6 +55,8 @@
 		});
 	}
 
+	let currentPreviewBlob = null; // Store current preview GLB blob
+
 	// Reactive statement - updates model whenever scadContent changes
 	$: if (scadContent !== lastProcessedContent && scadContent.trim()) {
 		updateModel();
@@ -71,31 +80,36 @@
 			const result = await response.json();
 			
 			if (result.type === 'success') {
-				// Force reload the model viewer by updating the cache buster
+				// Convert base64 GLB data to blob and create object URL
+				const glbBuffer = Uint8Array.from(atob(result.data.glbData), c => c.charCodeAt(0));
+				
+				// Clean up previous blob URL
+				if (currentPreviewBlob) {
+					URL.revokeObjectURL(currentPreviewBlob);
+				}
+				
+				// Create new blob and URL
+				const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
+				currentPreviewBlob = URL.createObjectURL(glbBlob);
+				
+				// Update model viewer with new preview
 				modelUpdateTime = Date.now();
-				useFirebaseModel = false; // Use local model after successful generation
+				useFirebaseModel = false; // Use in-memory preview
 				modelError = false;
 				lastUpdate = new Date().toLocaleTimeString();
-				// Update lastProcessedContent to current content
 				lastProcessedContent = scadContent;
 				
-				// Force the model-viewer to reload by directly updating its src
-				// Add a small delay to ensure file is fully written
-				setTimeout(() => {
-					if (modelViewer) {
-						const newSrc = `/models/previews/${data.scad.id}.glb?t=${modelUpdateTime}`;
-						console.log('Updating model-viewer src to:', newSrc);
-						modelViewer.src = newSrc;
-					}
-				}, 100);
+				// Update model viewer immediately
+				if (modelViewer) {
+					console.log('Updating model-viewer with in-memory GLB preview');
+					modelViewer.src = currentPreviewBlob;
+				}
 			} else {
 				console.error('Update failed:', result.data?.error);
-				alert('Update failed: ' + (result.data?.error || 'Unknown error'));
 				modelError = true;
 			}
 		} catch (error) {
 			console.error('Update error:', error);
-			alert('Update failed: ' + error.message);
 			modelError = true;
 		} finally {
 			isUpdating = false;
@@ -238,7 +252,7 @@
 						<model-viewer
 							bind:this={modelViewer}
 							alt="OpenSCAD 3D Model Preview"
-							src="{useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : `/models/previews/${data.scad.id}.glb?t=${modelUpdateTime}`}"
+							src="{useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : '')}"
 							ar
 							environment-image="/environments/default.hdr"
 							shadow-intensity="1"
