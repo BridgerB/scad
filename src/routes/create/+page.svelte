@@ -1,7 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
 	export let form;
@@ -29,18 +29,27 @@ cylinder(h=20, r=8);
 	let username = '';
 	let isSubmitting = false;
 	let modelViewer;
-	let hasPreview = true; // Start with default preview
-	let showDefaultPreview = true; // Show cylinder.glb initially
-	let isGeneratingPreview = false;
-	let lastPreviewContent = content; // Initialize with default content to prevent initial generation
+	let isUpdating = false;
+	let lastUpdate = '';
+	let modelError = false;
+	let lastProcessedContent = content;
+	let modelUpdateTime = Date.now(); // For cache busting
+	let useFirebaseModel = false; // Start with preview generation on create page
 	let editorView;
 	let editorContainer;
-	let isInitialized = false; // Track if editor is ready
+	let currentPreviewBlob = null; // Store current preview GLB blob
 
 	onMount(async () => {
 		if (browser) {
 			await import('@google/model-viewer');
 			await setupCodeMirror();
+		}
+	});
+
+	onDestroy(() => {
+		// Clean up blob URL to prevent memory leaks
+		if (currentPreviewBlob) {
+			URL.revokeObjectURL(currentPreviewBlob);
 		}
 	});
 
@@ -68,60 +77,100 @@ cylinder(h=20, r=8);
 			state: startState,
 			parent: editorContainer
 		});
-		
-		// Mark as initialized after setup
-		isInitialized = true;
 	}
 
-	// Generate preview when content changes (with debounce) - but only after initialization
-	let previewTimeout;
-	$: if (isInitialized && content !== lastPreviewContent && content.trim()) {
-		clearTimeout(previewTimeout);
-		previewTimeout = setTimeout(() => {
-			generatePreview();
-		}, 100); // .1 second debounce
+	// Reactive statement - updates model whenever content changes
+	$: if (content !== lastProcessedContent && content.trim()) {
+		updateModel();
 	}
 
-	async function generatePreview() {
-		if (isGeneratingPreview || !content.trim()) return;
+	// Manual update function
+	async function updateModel() {
+		if (isUpdating) return;
 		
-		isGeneratingPreview = true;
+		isUpdating = true;
 		try {
-			const formData = new FormData();
-			formData.append('scadContent', content);
-			
-			const response = await fetch('?/preview', {
+			const response = await fetch('/api/preview-glb', {
 				method: 'POST',
-				body: formData
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					scadContent: content,
+					scadId: 'temp-create'
+				})
 			});
 			
 			const result = await response.json();
 			
-			if (result.type === 'success') {
-				// Switch from default to generated preview
-				showDefaultPreview = false;
-				// Force reload the model viewer
-				if (modelViewer) {
-					modelViewer.src = `/models/previews/temp.glb?t=${Date.now()}`;
+			if (result.success) {
+				// Convert base64 GLB data to blob and create object URL
+				try {
+					// Debug: check the structure of the response
+					console.log('Server response:', result);
+					
+					const glbData = result.glbData;
+					if (!glbData) {
+						throw new Error('No GLB data in response');
+					}
+					
+					// Clean the base64 string and decode properly
+					const cleanBase64 = glbData.replace(/\s/g, '');
+					const binaryString = atob(cleanBase64);
+					const glbBuffer = new Uint8Array(binaryString.length);
+					for (let i = 0; i < binaryString.length; i++) {
+						glbBuffer[i] = binaryString.charCodeAt(i);
+					}
+					
+					// Clean up previous blob URL
+					if (currentPreviewBlob) {
+						URL.revokeObjectURL(currentPreviewBlob);
+					}
+					
+					// Create new blob and URL
+					const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
+					currentPreviewBlob = URL.createObjectURL(glbBlob);
+					
+					// Update model viewer with new preview
+					modelUpdateTime = Date.now();
+					useFirebaseModel = false; // Use in-memory preview
+					modelError = false;
+					lastUpdate = new Date().toLocaleTimeString();
+					lastProcessedContent = content;
+					
+					// Update model viewer immediately
+					if (modelViewer) {
+						console.log('Updating model-viewer with in-memory GLB preview');
+						console.log('Blob URL:', currentPreviewBlob);
+						modelViewer.src = currentPreviewBlob;
+						// Force refresh
+						modelViewer.addEventListener('load', () => {
+							console.log('Model loaded successfully!');
+						});
+						modelViewer.addEventListener('error', (e) => {
+							console.error('Model load error:', e);
+						});
+					}
+				} catch (decodeError) {
+					console.error('Failed to decode GLB data:', decodeError);
+					modelError = true;
 				}
-				hasPreview = true;
-				lastPreviewContent = content;
 			} else {
-				console.error('Preview generation failed:', result.data?.error);
-				// Keep showing default preview if generation fails
-				if (!showDefaultPreview) {
-					hasPreview = false;
-				}
+				console.error('Update failed:', result.error);
+				modelError = true;
 			}
 		} catch (error) {
-			console.error('Preview error:', error);
-			// Keep showing default preview if error occurs
-			if (!showDefaultPreview) {
-				hasPreview = false;
-			}
+			console.error('Update error:', error);
+			modelError = true;
 		} finally {
-			isGeneratingPreview = false;
+			isUpdating = false;
 		}
+	}
+
+	// Handle model loading errors with fallback
+	function handleModelError() {
+		console.log('Model loading failed');
+		modelError = true;
 	}
 
 	function handleSubmit() {
@@ -235,29 +284,33 @@ cylinder(h=20, r=8);
 			<!-- Preview Panel -->
 			<div class="preview-panel">
 				<div class="model-container">
-					{#if browser && hasPreview}
-						<model-viewer
-							bind:this={modelViewer}
-							alt="OpenSCAD 3D Model Preview"
-							src="{showDefaultPreview ? '/models/cylinder.glb' : `/models/previews/temp.glb?t=${Date.now()}`}"
-							ar
-							environment-image="/environments/default.hdr"
-							shadow-intensity="1"
-							camera-controls
-							touch-action="pan-y"
-							auto-rotate
-							exposure="1"
-							skybox-image="/environments/default.hdr"
-							loading="lazy"
-							on:error={() => { hasPreview = false; }}
-						></model-viewer>
-					{:else if browser && isGeneratingPreview}
-						<div class="loading">Generating 3D preview...</div>
-					{:else if browser}
-						<div class="no-preview">
-							<p>3D preview will appear here</p>
-							<p class="hint">Start typing OpenSCAD code to see the preview</p>
-						</div>
+					{#if isUpdating}
+						<div class="status-overlay updating">Updating...</div>
+					{/if}
+					
+					{#if browser}
+						{#if modelError}
+							<div class="model-error">
+								<p>3D model failed to load</p>
+								<p class="error-hint">Try modifying the code to regenerate the model</p>
+							</div>
+						{:else}
+							<model-viewer
+								bind:this={modelViewer}
+								alt="OpenSCAD 3D Model Preview"
+								src="{currentPreviewBlob || '/models/cylinder.glb'}"
+								ar
+								environment-image="/environments/default.hdr"
+								shadow-intensity="1"
+								camera-controls
+								touch-action="pan-y"
+								auto-rotate
+								exposure="1"
+								skybox-image="/environments/default.hdr"
+								loading="lazy"
+								on:error={handleModelError}
+							></model-viewer>
+						{/if}
 					{:else}
 						<div class="loading">Loading 3D viewer...</div>
 					{/if}
@@ -410,10 +463,50 @@ cylinder(h=20, r=8);
 		min-height: 500px;
 	}
 
+	.status-overlay {
+		position: absolute;
+		top: 10px;
+		right: 10px;
+		padding: 0.5rem 1rem;
+		background: rgba(255, 255, 255, 0.9);
+		border-radius: 4px;
+		font-size: 0.9rem;
+		z-index: 1000;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	}
+
+	.status-overlay.updating {
+		background: rgba(0, 122, 204, 0.1);
+		border: 1px solid #007acc;
+		color: #007acc;
+	}
+
 	model-viewer {
 		width: 100%;
 		height: 100%;
 		background-color: #eee;
+	}
+
+	.model-error {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		background-color: #f8d7da;
+		border: 1px solid #f5c6cb;
+		color: #721c24;
+		text-align: center;
+	}
+
+	.model-error p {
+		margin: 0.5rem 0;
+	}
+
+	.error-hint {
+		font-size: 0.9rem;
+		color: #856404;
 	}
 
 	.loading, .no-preview {

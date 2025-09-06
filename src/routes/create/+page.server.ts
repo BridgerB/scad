@@ -3,9 +3,6 @@ import { scads, users } from "$lib/server/db/schema";
 import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
 import { generateAndUploadGlb } from "$lib/server/glb-upload";
-import { convertScadToGlbWithColor } from "$lib/server/convert-scad-with-color";
-import { mkdirSync, unlinkSync, writeFileSync } from "fs";
-import { dirname } from "path";
 import { eq } from "drizzle-orm";
 
 export const load: PageServerLoad = async () => {
@@ -14,68 +11,6 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-  // Preview action - generates temporary GLB for preview
-  preview: async ({ request }) => {
-    const data = await request.formData();
-    const scadContent = data.get("scadContent") as string;
-
-    if (!scadContent) {
-      return {
-        type: "error",
-        data: { error: "No SCAD content provided" },
-      };
-    }
-
-    try {
-      // Create temporary files for preview
-      const tempId = Date.now();
-      const tempScadPath = `/tmp/preview-${tempId}.scad`;
-      const tempGlbPath = `/tmp/preview-${tempId}.glb`;
-      const previewGlbPath =
-        `/home/bridger/git/scad/static/models/previews/temp.glb`;
-
-      // Ensure preview directory exists
-      mkdirSync(dirname(previewGlbPath), { recursive: true });
-
-      // Write the SCAD content to temp file
-      writeFileSync(tempScadPath, scadContent, "utf-8");
-
-      // Convert to GLB using our conversion function
-      await convertScadToGlbWithColor(tempScadPath, tempGlbPath);
-
-      // Copy the generated GLB to preview location
-      const fs = await import("fs");
-      const glbBuffer = fs.readFileSync(tempGlbPath);
-      writeFileSync(previewGlbPath, glbBuffer);
-
-      // Clean up temporary files
-      try {
-        unlinkSync(tempScadPath);
-        unlinkSync(tempGlbPath);
-      } catch (cleanupError) {
-        console.warn("Could not clean up temp files:", cleanupError);
-      }
-
-      return {
-        type: "success",
-        data: {
-          message: "Preview generated successfully",
-          timestamp: Date.now(),
-        },
-      };
-    } catch (error) {
-      console.error("Error generating preview:", error);
-      return {
-        type: "error",
-        data: {
-          error: `Failed to generate preview: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-        },
-      };
-    }
-  },
-
   // Create action - saves new SCAD to database
   create: async ({ request }) => {
     const data = await request.formData();
