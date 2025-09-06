@@ -79,8 +79,7 @@ cylinder(h=20, r=8);
 		});
 	}
 
-	// Reactive statement - updates model whenever content changes
-	$: if (content !== lastProcessedContent && content.trim()) {
+	$: if ((content !== lastProcessedContent || modelError) && content.trim()) {
 		updateModel();
 	}
 

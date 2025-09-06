@@ -57,16 +57,18 @@
 
 	let currentPreviewBlob = null; // Store current preview GLB blob
 
-	// Reactive statement - updates model whenever scadContent changes
-	$: if (scadContent !== lastProcessedContent && scadContent.trim()) {
+	$: if ((scadContent !== lastProcessedContent || modelError) && scadContent.trim()) {
 		updateModel();
 	}
+
+	$: computedModelSrc = modelError ? '/models/error/error.glb' : (useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : ''));
 
 	// Manual update function
 	async function updateModel() {
 		if (isUpdating) return;
 		
 		isUpdating = true;
+		
 		try {
 			const response = await fetch('/api/preview-glb', {
 				method: 'POST',
@@ -84,9 +86,6 @@
 			if (result.success) {
 				// Convert base64 GLB data to blob and create object URL
 				try {
-					// Debug: check the structure of the response
-					console.log('Server response:', result);
-					
 					const glbData = result.glbData;
 					if (!glbData) {
 						throw new Error('No GLB data in response');
@@ -107,38 +106,23 @@
 					
 					// Create new blob and URL
 					const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
-					currentPreviewBlob = URL.createObjectURL(glbBlob);
+					const newBlobUrl = URL.createObjectURL(glbBlob);
 					
-					// Update model viewer with new preview
+					// Update state - let template reactivity handle model-viewer updates
+					currentPreviewBlob = newBlobUrl;
 					modelUpdateTime = Date.now();
 					useFirebaseModel = false; // Use in-memory preview
 					modelError = false;
 					lastUpdate = new Date().toLocaleTimeString();
 					lastProcessedContent = scadContent;
 					
-					// Update model viewer immediately
-					if (modelViewer) {
-						console.log('Updating model-viewer with in-memory GLB preview');
-						console.log('Blob URL:', currentPreviewBlob);
-						modelViewer.src = currentPreviewBlob;
-						// Force refresh
-						modelViewer.addEventListener('load', () => {
-							console.log('Model loaded successfully!');
-						});
-						modelViewer.addEventListener('error', (e) => {
-							console.error('Model load error:', e);
-						});
-					}
 				} catch (decodeError) {
-					console.error('Failed to decode GLB data:', decodeError);
 					modelError = true;
 				}
 			} else {
-				console.error('Update failed:', result.error);
 				modelError = true;
 			}
 		} catch (error) {
-			console.error('Update error:', error);
 			modelError = true;
 		} finally {
 			isUpdating = false;
@@ -294,7 +278,7 @@
 					<model-viewer
 						bind:this={modelViewer}
 						alt="OpenSCAD 3D Model Preview"
-						src="{modelError ? '/models/error/error.glb' : (useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : ''))}"
+						src="{computedModelSrc}"
 						ar
 						environment-image="/environments/default.hdr"
 						shadow-intensity="1"
