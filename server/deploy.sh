@@ -16,6 +16,20 @@ echo "🔥 Configuring firewall for port 3001..."
 if ! sudo iptables -C INPUT -p tcp --dport 3001 -j ACCEPT 2>/dev/null; then
     sudo iptables -I INPUT 4 -p tcp --dport 3001 -j ACCEPT
     echo "✅ Added iptables rule for port 3001"
+    
+    # Make rule persistent by adding to rc.local
+    if ! grep -q "iptables -I INPUT 4 -p tcp --dport 3001 -j ACCEPT" /etc/rc.local 2>/dev/null; then
+        echo "🔧 Making iptables rule persistent..."
+        sudo cp /etc/rc.local /etc/rc.local.bak 2>/dev/null || true
+        {
+            echo "#!/bin/bash"
+            echo "# OpenSCAD API firewall rule"
+            echo "iptables -I INPUT 4 -p tcp --dport 3001 -j ACCEPT"
+            echo "exit 0"
+        } | sudo tee /etc/rc.local > /dev/null
+        sudo chmod +x /etc/rc.local
+        echo "✅ Added firewall rule to /etc/rc.local for persistence"
+    fi
 else
     echo "✅ Port 3001 already allowed in iptables"
 fi
