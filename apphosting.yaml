@@ -7,11 +7,6 @@ runConfig:
   # cpu: 1
   # memoryMiB: 512
 
-  # Cloud SQL connections
-  cloudSqlInstances:
-    - sql-bridgerb-com:us-central1:sql
-
-
 # Environment variables and secrets.
 env:
   # Configure environment variables.
