@@ -6,6 +6,12 @@ runConfig:
   # concurrency: 80
   # cpu: 1
   # memoryMiB: 512
+  
+  # VPC access for private Cloud SQL connection
+  vpcAccess:
+    egress: PRIVATE_RANGES_ONLY
+    networkInterfaces:
+      - network: default
 
 # Environment variables and secrets.
 env:
