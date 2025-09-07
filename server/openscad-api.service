@@ -8,8 +8,8 @@ Type=simple
 Restart=always
 RestartSec=1
 User=ubuntu
-WorkingDirectory=/home/ubuntu/server
-ExecStart=/usr/bin/npm run start
+WorkingDirectory=/home/ubuntu/git/scad/server
+ExecStart=/home/ubuntu/.nix-profile/bin/npm run start
 Environment=NODE_ENV=production
 StandardOutput=syslog
 StandardError=syslog
