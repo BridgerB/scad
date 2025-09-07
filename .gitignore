@@ -21,14 +21,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-static/models/default.glb
-static/models/house/*
-static/models/spiral/spiral.glb
-static/models/spiral/spiral.stl
-static/models/generated/output.scad
-static/models/generated/output.glb
 src/lib/server/firebase-admin-key.json
-static/models/previews/*
 firebase-debug.log
 
 ai/
