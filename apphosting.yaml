@@ -12,6 +12,7 @@ runConfig:
     egress: PRIVATE_RANGES_ONLY
     networkInterfaces:
       - network: default
+        subnetwork: default
 
 # Environment variables and secrets.
 env:
