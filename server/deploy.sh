@@ -11,6 +11,15 @@ echo "🚀 Starting OpenSCAD API Server deployment..."
 # Check prerequisites
 echo "🔍 Checking prerequisites..."
 
+# Configure firewall for port 3001
+echo "🔥 Configuring firewall for port 3001..."
+if ! sudo iptables -C INPUT -p tcp --dport 3001 -j ACCEPT 2>/dev/null; then
+    sudo iptables -I INPUT 4 -p tcp --dport 3001 -j ACCEPT
+    echo "✅ Added iptables rule for port 3001"
+else
+    echo "✅ Port 3001 already allowed in iptables"
+fi
+
 # Check if npm is available and get its path
 NPM_PATH=$(which npm)
 if [ -z "$NPM_PATH" ]; then
