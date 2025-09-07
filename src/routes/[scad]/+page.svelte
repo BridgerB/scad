@@ -247,27 +247,7 @@
 
 	<!-- Split Panel Layout - Top Section -->
 	<div class="editor-viewer-layout">
-		<!-- Code Editor Panel - Left Side -->
-		<div class="editor-panel">
-			<div 
-				bind:this={editorContainer}
-				class="code-editor"
-			></div>
-			
-			<div class="editor-footer">
-				<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
-					{isUpdating ? 'Saving...' : 'Save Changes'}
-				</button>
-				<button on:click={downloadScad} class="download-btn">
-					Download .scad file
-				</button>
-				<button on:click={downloadGlb} class="download-btn">
-					Download .glb file
-				</button>
-			</div>
-		</div>
-		
-		<!-- Model Viewer Panel - Right Side -->
+		<!-- Model Viewer Panel - Right Side (First on Mobile) -->
 		<div class="viewer-panel">
 			<div class="model-container">
 				{#if isUpdating}
@@ -293,6 +273,26 @@
 				{:else}
 					<div class="loading">Loading 3D viewer...</div>
 				{/if}
+			</div>
+		</div>
+		
+		<!-- Code Editor Panel - Left Side (Second on Mobile) -->
+		<div class="editor-panel">
+			<div 
+				bind:this={editorContainer}
+				class="code-editor"
+			></div>
+			
+			<div class="editor-footer">
+				<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
+					{isUpdating ? 'Saving...' : 'Save Changes'}
+				</button>
+				<button on:click={downloadScad} class="download-btn">
+					Download .scad file
+				</button>
+				<button on:click={downloadGlb} class="download-btn">
+					Download .glb file
+				</button>
 			</div>
 		</div>
 	</div>
@@ -391,6 +391,14 @@
 		gap: 1rem;
 		margin-bottom: 2rem;
 		min-height: 80vh;
+	}
+	
+	.viewer-panel {
+		order: 2; /* Model viewer on right side for desktop */
+	}
+	
+	.editor-panel {
+		order: 1; /* Editor on left side for desktop */
 	}
 
 	.editor-panel, .viewer-panel {
@@ -595,6 +603,14 @@
 		.editor-viewer-layout {
 			grid-template-columns: 1fr;
 			gap: 1rem;
+		}
+		
+		.viewer-panel {
+			order: 1; /* Model viewer on top for mobile */
+		}
+		
+		.editor-panel {
+			order: 2; /* Editor below model for mobile */
 		}
 		
 		.info-cards {
