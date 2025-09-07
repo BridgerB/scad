@@ -7,12 +7,10 @@ runConfig:
   # cpu: 1
   # memoryMiB: 512
 
-  # VPC access for private Cloud SQL connection
-  vpcAccess:
-    egress: PRIVATE_RANGES_ONLY
-    networkInterfaces:
-      - network: default
-        subnetwork: default
+# Cloud SQL connections
+cloudSqlInstances:
+  - sql-bridgerb-com:us-central1:sql
+
 
 # Environment variables and secrets.
 env:
