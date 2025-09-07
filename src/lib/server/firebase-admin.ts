@@ -1,5 +1,5 @@
 import admin from "firebase-admin";
-import { getApps, getApp } from "firebase-admin/app";
+import { getApp, getApps } from "firebase-admin/app";
 import { env } from "$env/dynamic/private";
 import { building } from "$app/environment";
 

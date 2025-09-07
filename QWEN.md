@@ -2,11 +2,15 @@
 
 ## Project Overview
 
-This is a modern web application for creating, sharing, and viewing OpenSCAD 3D models with real-time preview capabilities. The platform allows users to write OpenSCAD code in a professional code editor and see real-time 3D previews of their models using Google Model Viewer.
+This is a modern web application for creating, sharing, and viewing OpenSCAD 3D
+models with real-time preview capabilities. The platform allows users to write
+OpenSCAD code in a professional code editor and see real-time 3D previews of
+their models using Google Model Viewer.
 
 ### Key Features
 
-- **Create OpenSCAD Models**: Professional code editor using CodeMirror with syntax highlighting
+- **Create OpenSCAD Models**: Professional code editor using CodeMirror with
+  syntax highlighting
 - **Real-time 3D Preview**: Instant GLB generation and 3D model viewing
 - **Model Sharing**: Share OpenSCAD creations with the community
 - **Search & Browse**: Find models by title, description, tags, or author
@@ -46,12 +50,14 @@ src/
 The application uses PostgreSQL with Drizzle ORM for data persistence:
 
 ### Users Table
+
 - `id`: UUID (Primary Key)
 - `username`: Text (Unique)
 - `email`: Text (Unique)
 - `createdAt`: Timestamp
 
 ### SCADS Table
+
 - `id`: UUID (Primary Key)
 - `title`: Text
 - `description`: Text
@@ -66,6 +72,7 @@ The application uses PostgreSQL with Drizzle ORM for data persistence:
 - `updatedAt`: Timestamp
 
 ### SCAD Photos Table
+
 - `id`: UUID (Primary Key)
 - `scadId`: UUID (Foreign Key to SCADS)
 - `url`: Text
@@ -74,6 +81,7 @@ The application uses PostgreSQL with Drizzle ORM for data persistence:
 - `createdAt`: Timestamp
 
 ### SCAD Ratings Table
+
 - `id`: UUID (Primary Key)
 - `scadId`: UUID (Foreign Key to SCADS)
 - `userId`: UUID (Foreign Key to Users)
@@ -84,18 +92,21 @@ The application uses PostgreSQL with Drizzle ORM for data persistence:
 ## Key Routes
 
 ### Home Page (`/`)
+
 - Browse all public models in a grid view
 - Search functionality across titles, descriptions, and tags
 - Pagination support
 - 3D model previews using Google Model Viewer
 
 ### Create Page (`/create`)
+
 - Professional code editor with CodeMirror
 - Real-time 3D preview generation
 - Default example code showing common OpenSCAD shapes
 - Form for model metadata (title, description, tags)
 
 ### Model View/Edit Page (`/[scad]`)
+
 - Edit existing models with live preview updates
 - Save changes to database and Firebase Storage
 - Download models as `.scad` or `.glb` files
@@ -104,13 +115,19 @@ The application uses PostgreSQL with Drizzle ORM for data persistence:
 
 ## 3D Model Processing
 
-The application converts OpenSCAD code to GLB format using an external OpenSCAD API service:
+The application converts OpenSCAD code to GLB format using an external OpenSCAD
+API service:
 
-1. **Preview Generation**: When users type in the code editor, the application sends the SCAD content to `/api/preview-glb`
-2. **External API**: The API route forwards the request to an external OpenSCAD service that converts SCAD to GLB
-3. **In-Memory Processing**: Preview GLBs are processed in-memory and converted to Blob URLs for immediate viewing
-4. **Firebase Storage**: Final GLB files are stored in Firebase Storage when models are saved
-5. **Proxy Serving**: GLB files are served through a proxy endpoint (`/api/glb/[id]`) that fetches from Firebase Storage
+1. **Preview Generation**: When users type in the code editor, the application
+   sends the SCAD content to `/api/preview-glb`
+2. **External API**: The API route forwards the request to an external OpenSCAD
+   service that converts SCAD to GLB
+3. **In-Memory Processing**: Preview GLBs are processed in-memory and converted
+   to Blob URLs for immediate viewing
+4. **Firebase Storage**: Final GLB files are stored in Firebase Storage when
+   models are saved
+5. **Proxy Serving**: GLB files are served through a proxy endpoint
+   (`/api/glb/[id]`) that fetches from Firebase Storage
 
 ## Environment Configuration
 
@@ -126,6 +143,7 @@ See `.env.example` for the required variables.
 ## Development Setup
 
 ### Prerequisites
+
 - Node.js 18+
 - PostgreSQL database
 - Docker (for PostgreSQL via docker-compose)
@@ -133,6 +151,7 @@ See `.env.example` for the required variables.
 - Access to OpenSCAD API service
 
 ### Installation
+
 1. Install dependencies: `npm install`
 2. Start PostgreSQL: `npm run db:start`
 3. Set up database schema: `npm run db:push`
@@ -140,6 +159,7 @@ See `.env.example` for the required variables.
 5. Start development server: `npm run dev`
 
 ### Available Scripts
+
 - `npm run dev`: Start development server
 - `npm run build`: Create production build
 - `npm run preview`: Preview production build
@@ -152,7 +172,9 @@ See `.env.example` for the required variables.
 
 ## Deployment
 
-The application is configured for deployment to Firebase App Hosting with the following configuration:
+The application is configured for deployment to Firebase App Hosting with the
+following configuration:
+
 - Backend runs on Cloud Run
 - Environment variables are managed through Firebase Secrets
 - Database connection and Firebase credentials are securely stored
