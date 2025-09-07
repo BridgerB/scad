@@ -102,7 +102,7 @@ app.post("/api/convert-scad", authenticateApiKey, async (req, res) => {
 
     // Step 1: Generate OFF file with colors using OpenSCAD
     console.log("\n--- Step 1: Generating OFF file with OpenSCAD ---");
-    const openscadCommand = `openscad -o ${tempOffPath} ${tempScadPath}`;
+    const openscadCommand = `openscad --backend=manifold -o ${tempOffPath} ${tempScadPath}`;
     console.log(`OpenSCAD command: ${openscadCommand}`);
 
     try {
