@@ -2,7 +2,7 @@ import type { Actions, PageServerLoad } from "./$types";
 import { fail } from "@sveltejs/kit";
 import { db } from "$lib/server/db";
 import { scadPhotos, scadRatings, scads, users } from "$lib/server/db/schema";
-import { count, desc, sql } from "drizzle-orm";
+import { count, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { generateAndUploadGlb } from "$lib/server/glb-upload";
 
 const sampleTitles = [
@@ -297,6 +297,45 @@ export const actions: Actions = {
     } catch (error) {
       console.error("Seeding error:", error);
       return fail(500, { error: "Failed to seed database" });
+    }
+  },
+
+  // Regenerate GLBs for existing records that are missing one (glb_url null/empty)
+  // using the in-process converter, and store the resulting URL.
+  backfillGlb: async () => {
+    try {
+      const missing = await db
+        .select({ id: scads.id, title: scads.title, content: scads.content })
+        .from(scads)
+        .where(or(isNull(scads.glbUrl), eq(scads.glbUrl, "")));
+
+      console.log(`Backfill: ${missing.length} scads missing a GLB`);
+      let ok = 0;
+      const failures: { title: string; error: string }[] = [];
+
+      for (const s of missing) {
+        try {
+          const glbUrl = await generateAndUploadGlb(s.content);
+          await db.update(scads).set({ glbUrl }).where(eq(scads.id, s.id));
+          ok++;
+          console.log(`  ✓ ${s.title} -> ${glbUrl}`);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "Unknown error";
+          failures.push({ title: s.title, error: msg });
+          console.error(`  ✗ ${s.title}: ${msg}`);
+        }
+      }
+
+      return {
+        success: true,
+        message:
+          `Backfill complete: ${ok}/${missing.length} GLBs generated` +
+          (failures.length ? `; ${failures.length} failed` : ""),
+        failures,
+      };
+    } catch (error) {
+      console.error("Backfill error:", error);
+      return fail(500, { error: "Backfill failed" });
     }
   },
 
