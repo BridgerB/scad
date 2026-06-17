@@ -1,124 +1,63 @@
 <script>
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
+	import ScadEditor from '$lib/components/ScadEditor.svelte';
 
 	export let data;
 
 	let modelViewer;
-	let scadContent = data.scad.content;
+	// Multi-file project state (bound to ScadEditor).
+	let files = data.project?.files ?? [{ path: 'main.scad', content: data.scad.content ?? '' }];
+	let entryPath = data.project?.entryPath ?? 'main.scad';
+
 	let isUpdating = false;
-	let lastUpdate = '';
+	let isSaving = false;
 	let modelError = false;
-	let lastProcessedContent = data.scad.content;
-	let modelUpdateTime = Date.now(); // For cache busting
-	let useFirebaseModel = true; // Start with Firebase model on page load
-	let editorView;
-	let editorContainer;
-	
+	let useFirebaseModel = true; // Start with the saved Firebase model on load
+	let currentPreviewBlob = null;
+	let previewTimer;
+
 	onMount(async () => {
-		if (browser) {
-			await import('@google/model-viewer');
-			await setupCodeMirror();
-		}
+		if (browser) await import('@google/model-viewer');
 	});
 
 	onDestroy(() => {
-		// Clean up blob URL to prevent memory leaks
-		if (currentPreviewBlob) {
-			URL.revokeObjectURL(currentPreviewBlob);
-		}
+		if (currentPreviewBlob) URL.revokeObjectURL(currentPreviewBlob);
+		clearTimeout(previewTimer);
 	});
 
-	async function setupCodeMirror() {
-		const { EditorView, basicSetup } = await import('codemirror');
-		const { EditorState } = await import('@codemirror/state');
-		const { oneDark } = await import('@codemirror/theme-one-dark');
-		const { cpp } = await import('@codemirror/lang-cpp');
+	$: computedModelSrc = modelError
+		? '/models/error/error.glb'
+		: (useFirebaseModel && data.scad.glbUrl
+			? getGlbProxyUrl(data.scad.glbUrl)
+			: currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : ''));
 
-		const startState = EditorState.create({
-			doc: scadContent,
-			extensions: [
-				basicSetup,
-				oneDark,
-				cpp(), // Use C++ syntax highlighting for OpenSCAD
-				EditorView.updateListener.of((update) => {
-					if (update.docChanged) {
-						scadContent = update.state.doc.toString();
-					}
-				})
-			]
-		});
-
-		editorView = new EditorView({
-			state: startState,
-			parent: editorContainer
-		});
+	// Debounced live preview when the project changes.
+	function onProjectChange() {
+		clearTimeout(previewTimer);
+		previewTimer = setTimeout(updateModel, 400);
 	}
 
-	let currentPreviewBlob = null; // Store current preview GLB blob
-
-	$: if ((scadContent !== lastProcessedContent || modelError) && scadContent.trim()) {
-		updateModel();
-	}
-
-	$: computedModelSrc = modelError ? '/models/error/error.glb' : (useFirebaseModel && data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : ''));
-
-	// Manual update function
 	async function updateModel() {
 		if (isUpdating) return;
-		
+		const entryText = files.find((f) => f.path === entryPath)?.content ?? '';
+		if (!entryText.trim()) return;
 		isUpdating = true;
-		
 		try {
 			const response = await fetch('/api/preview-glb', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					scadContent: scadContent,
-					scadId: data.scad.id
-				})
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ files, entryPath, scadId: data.scad.id })
 			});
-			
 			const result = await response.json();
-			
-			if (result.success) {
-				// Convert base64 GLB data to blob and create object URL
-				try {
-					const glbData = result.glbData;
-					if (!glbData) {
-						throw new Error('No GLB data in response');
-					}
-					
-					// Clean the base64 string and decode properly
-					const cleanBase64 = glbData.replace(/\s/g, '');
-					const binaryString = atob(cleanBase64);
-					const glbBuffer = new Uint8Array(binaryString.length);
-					for (let i = 0; i < binaryString.length; i++) {
-						glbBuffer[i] = binaryString.charCodeAt(i);
-					}
-					
-					// Clean up previous blob URL
-					if (currentPreviewBlob) {
-						URL.revokeObjectURL(currentPreviewBlob);
-					}
-					
-					// Create new blob and URL
-					const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
-					const newBlobUrl = URL.createObjectURL(glbBlob);
-					
-					// Update state - let template reactivity handle model-viewer updates
-					currentPreviewBlob = newBlobUrl;
-					modelUpdateTime = Date.now();
-					useFirebaseModel = false; // Use in-memory preview
-					modelError = false;
-					lastUpdate = new Date().toLocaleTimeString();
-					lastProcessedContent = scadContent;
-					
-				} catch (decodeError) {
-					modelError = true;
-				}
+			if (result.success && result.glbData) {
+				const binaryString = atob(result.glbData.replace(/\s/g, ''));
+				const buf = new Uint8Array(binaryString.length);
+				for (let i = 0; i < binaryString.length; i++) buf[i] = binaryString.charCodeAt(i);
+				if (currentPreviewBlob) URL.revokeObjectURL(currentPreviewBlob);
+				currentPreviewBlob = URL.createObjectURL(new Blob([buf], { type: 'model/gltf-binary' }));
+				useFirebaseModel = false;
+				modelError = false;
 			} else {
 				modelError = true;
 			}
@@ -141,7 +80,9 @@
 	}
 
 	function downloadScad() {
-		const blob = new Blob([data.scad.content], { type: 'text/plain' });
+		// Download the entry file's source.
+		const entryText = files.find((f) => f.path === entryPath)?.content ?? data.scad.content;
+		const blob = new Blob([entryText], { type: 'text/plain' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
@@ -153,9 +94,7 @@
 	}
 
 	function downloadGlb() {
-		// Use the current preview blob if available, otherwise fallback to Firebase GLB
 		const glbSource = currentPreviewBlob || (data.scad.glbUrl ? getGlbProxyUrl(data.scad.glbUrl) : null);
-		
 		if (glbSource) {
 			const a = document.createElement('a');
 			a.href = glbSource;
@@ -168,62 +107,43 @@
 		}
 	}
 
-	// Extract GLB ID from Firebase Storage URL
 	function getGlbProxyUrl(glbUrl) {
 		if (!glbUrl) return null;
-		// Extract the filename from the Firebase URL
-		// URL format: https://storage.googleapis.com/.../scads/UUID.glb
 		const match = glbUrl.match(/scads\/([^\.]+)\.glb/);
-		if (match) {
-			return `/api/glb/${match[1]}`;
-		}
-		return null;
+		return match ? `/api/glb/${match[1]}` : null;
 	}
 
-	// Handle model loading errors with fallback
 	function handleModelError() {
 		if (useFirebaseModel && data.scad.glbUrl) {
-			// Firebase model failed - try local preview
-			console.log('Firebase GLB failed, trying local preview...');
 			useFirebaseModel = false;
 		} else {
-			// Both Firebase and local failed
-			console.log('Both Firebase and local GLB failed');
 			modelError = true;
 		}
 	}
 
-	// Save to database and Firebase Storage
 	async function saveScad() {
-		if (isUpdating) return;
-		
-		isUpdating = true;
+		if (isSaving) return;
+		isSaving = true;
 		try {
 			const formData = new FormData();
-			formData.append('scadContent', scadContent);
+			formData.append('project', JSON.stringify({ files, entryPath }));
 			formData.append('scadId', data.scad.id);
-			
-			const response = await fetch('?/saveScad', {
-				method: 'POST',
-				body: formData
-			});
-			
+
+			const response = await fetch('?/saveScad', { method: 'POST', body: formData });
 			const result = await response.json();
-			
-			if (result.type === 'success') {
+
+			// SvelteKit action responses are wrapped; handle both shapes.
+			const ok = result.type === 'success' || result.status === 200;
+			if (ok) {
 				alert('SCAD file saved successfully!');
-				// Update the page data to reflect the saved content
-				data.scad.content = scadContent;
-				lastProcessedContent = scadContent;
+				data.scad.content = files.find((f) => f.path === entryPath)?.content ?? data.scad.content;
 			} else {
-				console.error('Save failed:', result.data?.error);
-				alert('Save failed: ' + (result.data?.error || 'Unknown error'));
+				alert('Save failed: ' + (result.data?.error || result.error || 'Unknown error'));
 			}
 		} catch (error) {
-			console.error('Save error:', error);
 			alert('Save failed: ' + error.message);
 		} finally {
-			isUpdating = false;
+			isSaving = false;
 		}
 	}
 </script>
@@ -245,15 +165,10 @@
 		</div>
 	</div>
 
-	<!-- Split Panel Layout - Top Section -->
 	<div class="editor-viewer-layout">
-		<!-- Model Viewer Panel - Right Side (First on Mobile) -->
 		<div class="viewer-panel">
 			<div class="model-container">
-				{#if isUpdating}
-					<div class="status-overlay updating">Updating...</div>
-				{/if}
-				
+				{#if isUpdating}<div class="status-overlay updating">Updating...</div>{/if}
 				{#if browser}
 					<model-viewer
 						bind:this={modelViewer}
@@ -275,29 +190,20 @@
 				{/if}
 			</div>
 		</div>
-		
-		<!-- Code Editor Panel - Left Side (Second on Mobile) -->
+
 		<div class="editor-panel">
-			<div 
-				bind:this={editorContainer}
-				class="code-editor"
-			></div>
-			
+			<ScadEditor bind:files bind:entryPath on:change={onProjectChange} />
+
 			<div class="editor-footer">
-				<button on:click={saveScad} class="save-btn" disabled={isUpdating}>
-					{isUpdating ? 'Saving...' : 'Save Changes'}
+				<button on:click={saveScad} class="save-btn" disabled={isSaving}>
+					{isSaving ? 'Saving...' : 'Save Changes'}
 				</button>
-				<button on:click={downloadScad} class="download-btn">
-					Download .scad file
-				</button>
-				<button on:click={downloadGlb} class="download-btn">
-					Download .glb file
-				</button>
+				<button on:click={downloadScad} class="download-btn">Download .scad file</button>
+				<button on:click={downloadGlb} class="download-btn">Download .glb file</button>
 			</div>
 		</div>
 	</div>
 
-	<!-- Bottom Section - Description and Info Cards -->
 	<div class="bottom-section">
 		{#if data.scad.description}
 			<div class="description-card">
@@ -326,65 +232,24 @@
 
 			<div class="stats-card">
 				<h3>Statistics</h3>
-				<div class="stat">
-					<span class="stat-label">Downloads:</span>
-					<span class="stat-value">{data.scad.downloadCount}</span>
-				</div>
-				<div class="stat">
-					<span class="stat-label">File Size:</span>
-					<span class="stat-value">{formatFileSize(data.scad.fileSize)}</span>
-				</div>
-				<div class="stat">
-					<span class="stat-label">Likes:</span>
-					<span class="stat-value">{data.stats.likes}</span>
-				</div>
-				<div class="stat">
-					<span class="stat-label">Dislikes:</span>
-					<span class="stat-value">{data.stats.dislikes}</span>
-				</div>
+				<div class="stat"><span class="stat-label">Downloads:</span><span class="stat-value">{data.scad.downloadCount}</span></div>
+				<div class="stat"><span class="stat-label">File Size:</span><span class="stat-value">{formatFileSize(data.scad.fileSize)}</span></div>
+				<div class="stat"><span class="stat-label">Likes:</span><span class="stat-value">{data.stats.likes}</span></div>
+				<div class="stat"><span class="stat-label">Dislikes:</span><span class="stat-value">{data.stats.dislikes}</span></div>
 			</div>
 		</div>
 	</div>
 </div>
 
 <style>
-	.container {
-		max-width: 1400px;
-		margin: 0 auto;
-		padding: 1rem;
-	}
+	.container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+	.back-link { color: #007acc; text-decoration: none; margin-bottom: 1rem; display: inline-block; }
+	.back-link:hover { text-decoration: underline; }
+	.header h1 { margin: 0.5rem 0; color: #333; }
+	.meta { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+	.meta span { margin: 0 0.5rem; }
+	.meta span:first-child { margin-left: 0; }
 
-	.back-link {
-		color: #007acc;
-		text-decoration: none;
-		margin-bottom: 1rem;
-		display: inline-block;
-	}
-
-	.back-link:hover {
-		text-decoration: underline;
-	}
-
-	.header h1 {
-		margin: 0.5rem 0;
-		color: #333;
-	}
-
-	.meta {
-		color: #666;
-		font-size: 0.9rem;
-		margin-bottom: 2rem;
-	}
-
-	.meta span {
-		margin: 0 0.5rem;
-	}
-
-	.meta span:first-child {
-		margin-left: 0;
-	}
-
-	/* Split Panel Layout - Top Section */
 	.editor-viewer-layout {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
@@ -392,15 +257,8 @@
 		margin-bottom: 2rem;
 		min-height: 80vh;
 	}
-	
-	.viewer-panel {
-		order: 2; /* Model viewer on right side for desktop */
-	}
-	
-	.editor-panel {
-		order: 1; /* Editor on left side for desktop */
-	}
-
+	.viewer-panel { order: 2; }
+	.editor-panel { order: 1; }
 	.editor-panel, .viewer-panel {
 		display: flex;
 		flex-direction: column;
@@ -408,9 +266,8 @@
 		border-radius: 8px;
 		border: 1px solid #ddd;
 		overflow: hidden;
-		min-width: 0; /* Allow flexbox shrinking */
+		min-width: 0;
 	}
-
 	.editor-footer {
 		display: flex;
 		align-items: center;
@@ -419,7 +276,6 @@
 		background: #f8f9fa;
 		border-top: 1px solid #ddd;
 	}
-
 	.status-overlay {
 		position: absolute;
 		top: 10px;
@@ -431,210 +287,40 @@
 		z-index: 1000;
 		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
+	.status-overlay.updating { background: rgba(0, 122, 204, 0.1); border: 1px solid #007acc; color: #007acc; }
+	.save-btn { background: #28a745; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; font-weight: 500; }
+	.save-btn:hover:not(:disabled) { background: #218838; }
+	.save-btn:disabled { background: #6c757d; cursor: not-allowed; }
+	.download-btn { background: #007bff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+	.download-btn:hover { background: #0056b3; }
+	.model-container { flex: 1; background: #f5f5f5; position: relative; min-height: 500px; max-height: 70vh; }
+	model-viewer { width: 100%; height: 100%; background-color: #eee; }
+	.loading { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #666; background-color: #eee; }
 
-	.status-overlay.updating {
-		background: rgba(0, 122, 204, 0.1);
-		border: 1px solid #007acc;
-		color: #007acc;
-	}
-
-
-	.save-btn {
-		background: #28a745;
-		color: white;
-		border: none;
-		padding: 0.5rem 1rem;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 0.9rem;
-		font-weight: 500;
-		transition: background 0.2s;
-	}
-
-	.save-btn:hover:not(:disabled) {
-		background: #218838;
-	}
-
-	.save-btn:disabled {
-		background: #6c757d;
-		cursor: not-allowed;
-	}
-
-	.download-btn {
-		background: #007bff;
-		color: white;
-		border: none;
-		padding: 0.5rem 1rem;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 0.9rem;
-	}
-
-	.download-btn:hover {
-		background: #0056b3;
-	}
-
-	.code-editor {
-		flex: 1;
-		border: none;
-		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-		font-size: 14px;
-		line-height: 1.5;
-		overflow: hidden;
-		max-width: 100%; /* Prevent horizontal overflow */
-	}
-
-	.code-editor :global(.cm-editor) {
-		height: 100%;
-		max-width: 100%; /* Constrain editor width */
-		font-size: 14px;
-		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-	}
-
-	.code-editor :global(.cm-focused) {
-		outline: none;
-	}
-
-	.model-container {
-		flex: 1;
-		background: #f5f5f5;
-		position: relative;
-		min-height: 500px;
-		max-height: 70vh; /* Limit height on desktop to prevent excessive vertical space */
-	}
-
-	model-viewer {
-		width: 100%;
-		height: 100%;
-		background-color: #eee;
-	}
-
-	.loading {
-		width: 100%;
-		height: 100%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 1.2rem;
-		color: #666;
-		background-color: #eee;
-	}
-
-
-	/* Bottom Section */
-	.bottom-section {
-		display: flex;
-		flex-direction: column;
-		gap: 2rem;
-	}
-
-	.description-card {
-		background: white;
-		border: 1px solid #ddd;
-		border-radius: 8px;
-		padding: 2rem;
-	}
-
-	.description-card h2 {
-		color: #333;
-		margin: 0 0 1rem 0;
-	}
-
-	.description-card p {
-		line-height: 1.6;
-		color: #555;
-		margin: 0;
-	}
-
-	.info-cards {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-		gap: 1.5rem;
-	}
-
-	.stats-card, .tags-card, .author-card {
-		background: white;
-		border: 1px solid #ddd;
-		border-radius: 8px;
-		padding: 1.5rem;
-	}
-
-	.stats-card h3, .tags-card h3, .author-card h3 {
-		margin: 0 0 1rem 0;
-		color: #333;
-	}
-
-	.stat {
-		display: flex;
-		justify-content: space-between;
-		margin: 0.5rem 0;
-	}
-
-	.stat-label {
-		color: #666;
-	}
-
-	.stat-value {
-		font-weight: bold;
-		color: #333;
-	}
-
-	.tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-	}
-
-	.tag {
-		background: #007acc;
-		color: white;
-		padding: 0.25rem 0.75rem;
-		border-radius: 1rem;
-		font-size: 0.8rem;
-	}
-
-	.join-date {
-		color: #666;
-		font-size: 0.9rem;
-		margin: 0.5rem 0 0 0;
-	}
+	.bottom-section { display: flex; flex-direction: column; gap: 2rem; }
+	.description-card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 2rem; }
+	.description-card h2 { color: #333; margin: 0 0 1rem 0; }
+	.description-card p { line-height: 1.6; color: #555; margin: 0; }
+	.info-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+	.stats-card, .tags-card, .author-card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; }
+	.stats-card h3, .tags-card h3, .author-card h3 { margin: 0 0 1rem 0; color: #333; }
+	.stat { display: flex; justify-content: space-between; margin: 0.5rem 0; }
+	.stat-label { color: #666; }
+	.stat-value { font-weight: bold; color: #333; }
+	.tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+	.tag { background: #007acc; color: white; padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.8rem; }
+	.join-date { color: #666; font-size: 0.9rem; margin: 0.5rem 0 0 0; }
 
 	@media (max-width: 1024px) {
-		.editor-viewer-layout {
-			grid-template-columns: 1fr;
-			gap: 1rem;
-		}
-		
-		.viewer-panel {
-			order: 1; /* Model viewer on top for mobile */
-		}
-		
-		.editor-panel {
-			order: 2; /* Editor below model for mobile */
-		}
-		
-		.info-cards {
-			grid-template-columns: 1fr;
-		}
-		
-		.model-container {
-			max-height: none; /* Remove height restriction on mobile/tablet */
-		}
+		.editor-viewer-layout { grid-template-columns: 1fr; gap: 1rem; }
+		.viewer-panel { order: 1; }
+		.editor-panel { order: 2; }
+		.info-cards { grid-template-columns: 1fr; }
+		.model-container { max-height: none; }
 	}
-
 	@media (max-width: 768px) {
-		.container {
-			padding: 0.5rem;
-		}
-		
-		.editor-footer {
-			flex-direction: column;
-			gap: 0.5rem;
-			padding: 0.75rem;
-		}
-		
-		.model-container {
-			min-height: 400px;
-		}
+		.container { padding: 0.5rem; }
+		.editor-footer { flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
+		.model-container { min-height: 400px; }
 	}
 </style>

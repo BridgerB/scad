@@ -1,174 +1,77 @@
 <script>
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
+	import ScadEditor from '$lib/components/ScadEditor.svelte';
 
 	export let form;
+	export let data;
 
 	let title = '';
 	let description = '';
-	let content = `// 1. Sphere
-// sphere(10);
-
-// 2. Cube
-// cube(15);
-
-// 3. Cylinder
-cylinder(h=20, r=8);
-
-// 4. Cone (cylinder with different top/bottom radii)
-// cylinder(h=15, r1=10, r2=0);
-
-// 5. Rounded cube
-// minkowski() {
-//     cube([20, 20, 20]);
-//     sphere(2);
-// }`;
 	let tags = '';
 	let username = '';
 	let isSubmitting = false;
+
+	// Multi-file project state (bound to ScadEditor).
+	let files = data?.project?.files ?? [{ path: 'main.scad', content: '' }];
+	let entryPath = data?.project?.entryPath ?? 'main.scad';
+
 	let modelViewer;
 	let isUpdating = false;
-	let lastUpdate = '';
 	let modelError = false;
-	let lastProcessedContent = content;
-	let modelUpdateTime = Date.now(); // For cache busting
-	let useFirebaseModel = false; // Start with preview generation on create page
-	let editorView;
-	let editorContainer;
-	let currentPreviewBlob = null; // Store current preview GLB blob
+	let currentPreviewBlob = null;
+	let previewTimer;
+
+	$: entryText = files.find((f) => f.path === entryPath)?.content ?? '';
+	$: projectJson = JSON.stringify({ files, entryPath });
 
 	onMount(async () => {
-		if (browser) {
-			await import('@google/model-viewer');
-			await setupCodeMirror();
-		}
+		if (browser) await import('@google/model-viewer');
 	});
 
 	onDestroy(() => {
-		// Clean up blob URL to prevent memory leaks
-		if (currentPreviewBlob) {
-			URL.revokeObjectURL(currentPreviewBlob);
-		}
+		if (currentPreviewBlob) URL.revokeObjectURL(currentPreviewBlob);
+		clearTimeout(previewTimer);
 	});
 
-	async function setupCodeMirror() {
-		const { EditorView, basicSetup } = await import('codemirror');
-		const { EditorState } = await import('@codemirror/state');
-		const { oneDark } = await import('@codemirror/theme-one-dark');
-		const { cpp } = await import('@codemirror/lang-cpp');
-
-		const startState = EditorState.create({
-			doc: content,
-			extensions: [
-				basicSetup,
-				oneDark,
-				cpp(), // Use C++ syntax highlighting for OpenSCAD
-				EditorView.updateListener.of((update) => {
-					if (update.docChanged) {
-						content = update.state.doc.toString();
-					}
-				})
-			]
-		});
-
-		editorView = new EditorView({
-			state: startState,
-			parent: editorContainer
-		});
+	// Debounced live preview when the project changes (edits, add/remove, entry).
+	function onProjectChange() {
+		clearTimeout(previewTimer);
+		previewTimer = setTimeout(updateModel, 400);
 	}
 
-	$: if ((content !== lastProcessedContent || modelError) && content.trim()) {
-		updateModel();
-	}
-
-	// Manual update function
 	async function updateModel() {
-		if (isUpdating) return;
-		
+		if (isUpdating || !entryText.trim()) return;
 		isUpdating = true;
 		try {
 			const response = await fetch('/api/preview-glb', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					scadContent: content,
-					scadId: 'temp-create'
-				})
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ files, entryPath, scadId: 'temp-create' })
 			});
-			
 			const result = await response.json();
-			
-			if (result.success) {
-				// Convert base64 GLB data to blob and create object URL
-				try {
-					// Debug: check the structure of the response
-					console.log('Server response:', result);
-					
-					const glbData = result.glbData;
-					if (!glbData) {
-						throw new Error('No GLB data in response');
-					}
-					
-					// Clean the base64 string and decode properly
-					const cleanBase64 = glbData.replace(/\s/g, '');
-					const binaryString = atob(cleanBase64);
-					const glbBuffer = new Uint8Array(binaryString.length);
-					for (let i = 0; i < binaryString.length; i++) {
-						glbBuffer[i] = binaryString.charCodeAt(i);
-					}
-					
-					// Clean up previous blob URL
-					if (currentPreviewBlob) {
-						URL.revokeObjectURL(currentPreviewBlob);
-					}
-					
-					// Create new blob and URL
-					const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
-					currentPreviewBlob = URL.createObjectURL(glbBlob);
-					
-					// Update model viewer with new preview
-					modelUpdateTime = Date.now();
-					useFirebaseModel = false; // Use in-memory preview
-					modelError = false;
-					lastUpdate = new Date().toLocaleTimeString();
-					lastProcessedContent = content;
-					
-					// Update model viewer immediately
-					if (modelViewer) {
-						console.log('Updating model-viewer with in-memory GLB preview');
-						console.log('Blob URL:', currentPreviewBlob);
-						modelViewer.src = currentPreviewBlob;
-						// Force refresh
-						modelViewer.addEventListener('load', () => {
-							console.log('Model loaded successfully!');
-						});
-						modelViewer.addEventListener('error', (e) => {
-							console.error('Model load error:', e);
-						});
-					}
-				} catch (decodeError) {
-					console.error('Failed to decode GLB data:', decodeError);
-					modelError = true;
-				}
+			if (result.success && result.glbData) {
+				const binaryString = atob(result.glbData.replace(/\s/g, ''));
+				const buf = new Uint8Array(binaryString.length);
+				for (let i = 0; i < binaryString.length; i++) buf[i] = binaryString.charCodeAt(i);
+				if (currentPreviewBlob) URL.revokeObjectURL(currentPreviewBlob);
+				currentPreviewBlob = URL.createObjectURL(new Blob([buf], { type: 'model/gltf-binary' }));
+				modelError = false;
+				if (modelViewer) modelViewer.src = currentPreviewBlob;
 			} else {
-				console.error('Update failed:', result.error);
+				console.error('Preview failed:', result.error);
 				modelError = true;
 			}
 		} catch (error) {
-			console.error('Update error:', error);
+			console.error('Preview error:', error);
 			modelError = true;
 		} finally {
 			isUpdating = false;
 		}
 	}
 
-	// Handle model loading errors with fallback
 	function handleModelError() {
-		console.log('Model loading failed');
 		modelError = true;
 	}
 
@@ -197,101 +100,59 @@ cylinder(h=20, r=8);
 			<div class="form-panel">
 				<div class="form-group">
 					<label for="title">Title *</label>
-					<input
-						type="text"
-						id="title"
-						name="title"
-						bind:value={title}
-						required
-						placeholder="Enter a title for your SCAD file"
-					/>
-					{#if form?.errors?.title}
-						<div class="error">{form.errors.title}</div>
-					{/if}
+					<input type="text" id="title" name="title" bind:value={title} required
+						placeholder="Enter a title for your SCAD file" />
+					{#if form?.errors?.title}<div class="error">{form.errors.title}</div>{/if}
 				</div>
 
 				<div class="form-group">
 					<label for="username">Your Name *</label>
-					<input
-						type="text"
-						id="username"
-						name="username"
-						bind:value={username}
-						required
-						placeholder="Enter your name"
-					/>
-					{#if form?.errors?.username}
-						<div class="error">{form.errors.username}</div>
-					{/if}
+					<input type="text" id="username" name="username" bind:value={username} required
+						placeholder="Enter your name" />
+					{#if form?.errors?.username}<div class="error">{form.errors.username}</div>{/if}
 				</div>
 
 				<div class="form-group">
 					<label for="description">Description</label>
-					<textarea
-						id="description"
-						name="description"
-						bind:value={description}
-						rows="3"
-						placeholder="Describe your SCAD file (optional)"
-					></textarea>
-					{#if form?.errors?.description}
-						<div class="error">{form.errors.description}</div>
-					{/if}
+					<textarea id="description" name="description" bind:value={description} rows="3"
+						placeholder="Describe your SCAD file (optional)"></textarea>
+					{#if form?.errors?.description}<div class="error">{form.errors.description}</div>{/if}
 				</div>
 
 				<div class="form-group">
 					<label for="tags">Tags</label>
-					<input
-						type="text"
-						id="tags"
-						name="tags"
-						bind:value={tags}
-						placeholder="Enter tags separated by commas"
-					/>
+					<input type="text" id="tags" name="tags" bind:value={tags}
+						placeholder="Enter tags separated by commas" />
 					<div class="help-text">Separate multiple tags with commas</div>
-					{#if form?.errors?.tags}
-						<div class="error">{form.errors.tags}</div>
-					{/if}
 				</div>
 
 				<div class="form-group">
-					<label for="content">OpenSCAD Code *</label>
-					<div 
-						bind:this={editorContainer}
-						class="code-editor-container"
-					></div>
-					<input type="hidden" name="content" bind:value={content} required />
-					{#if form?.errors?.content}
-						<div class="error">{form.errors.content}</div>
-					{/if}
+					<label>OpenSCAD Project *</label>
+					<ScadEditor bind:files bind:entryPath on:change={onProjectChange} />
+					<input type="hidden" name="project" value={projectJson} />
+					<div class="help-text">The file marked ● is the render entry point. Add files for includes.</div>
+					{#if form?.errors?.content}<div class="error">{form.errors.content}</div>{/if}
 				</div>
 
 				<div class="form-actions">
-					<button type="submit" disabled={isSubmitting || !title.trim() || !content.trim() || !username.trim()}>
+					<button type="submit" disabled={isSubmitting || !title.trim() || !username.trim() || !entryText.trim()}>
 						{isSubmitting ? 'Creating...' : 'Create SCAD File'}
 					</button>
 				</div>
 
-				{#if form?.message}
-					<div class="success">{form.message}</div>
-				{/if}
-				{#if form?.error}
-					<div class="error">{form.error}</div>
-				{/if}
+				{#if form?.message}<div class="success">{form.message}</div>{/if}
+				{#if form?.error}<div class="error">{form.error}</div>{/if}
 			</div>
 
 			<!-- Preview Panel -->
 			<div class="preview-panel">
 				<div class="model-container">
-					{#if isUpdating}
-						<div class="status-overlay updating">Updating...</div>
-					{/if}
-					
+					{#if isUpdating}<div class="status-overlay updating">Updating...</div>{/if}
 					{#if browser}
 						<model-viewer
 							bind:this={modelViewer}
 							alt="OpenSCAD 3D Model Preview"
-							src="{modelError ? '/models/error/error.glb' : (currentPreviewBlob || '/models/cylinder.glb')}"
+							src="{modelError ? '/models/error/error.glb' : (currentPreviewBlob || data?.initialPreview || '/models/cylinder.glb')}"
 							ar
 							environment-image="/environments/default.hdr"
 							shadow-intensity="1"
@@ -326,9 +187,7 @@ cylinder(h=20, r=8);
 		display: inline-block;
 	}
 
-	.back-link:hover {
-		text-decoration: underline;
-	}
+	.back-link:hover { text-decoration: underline; }
 
 	.header h1 {
 		margin: 0.5rem 0 2rem 0;
@@ -346,8 +205,8 @@ cylinder(h=20, r=8);
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
-		min-width: 0; /* Allow flexbox shrinking */
-		overflow: hidden; /* Prevent content from breaking out */
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.form-group {
@@ -374,26 +233,6 @@ cylinder(h=20, r=8);
 		outline: none;
 		border-color: #007acc;
 		box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
-	}
-
-	.code-editor-container {
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		overflow: hidden;
-		min-height: 400px;
-		max-width: 100%; /* Prevent horizontal overflow */
-		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-	}
-
-	.code-editor-container :global(.cm-editor) {
-		min-height: 400px;
-		max-width: 100%; /* Constrain editor width */
-		font-size: 14px;
-		font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-	}
-
-	.code-editor-container :global(.cm-focused) {
-		outline: none;
 	}
 
 	.help-text {
@@ -432,16 +271,9 @@ cylinder(h=20, r=8);
 		transition: background 0.2s;
 	}
 
-	.form-actions button:hover:not(:disabled) {
-		background: #218838;
-	}
+	.form-actions button:hover:not(:disabled) { background: #218838; }
+	.form-actions button:disabled { background: #6c757d; cursor: not-allowed; }
 
-	.form-actions button:disabled {
-		background: #6c757d;
-		cursor: not-allowed;
-	}
-
-	/* Preview Panel */
 	.preview-panel {
 		background: white;
 		border: 1px solid #ddd;
@@ -449,16 +281,15 @@ cylinder(h=20, r=8);
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		min-width: 0; /* Allow flexbox shrinking */
+		min-width: 0;
 	}
-
 
 	.model-container {
 		flex: 1;
 		background: #f5f5f5;
 		position: relative;
 		min-height: 500px;
-		max-height: 70vh; /* Limit height on desktop to prevent excessive vertical space */
+		max-height: 70vh;
 	}
 
 	.status-overlay {
@@ -485,25 +316,13 @@ cylinder(h=20, r=8);
 		background-color: #eee;
 	}
 
-
-	.loading, .no-preview {
+	.loading {
 		width: 100%;
 		height: 100%;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		color: #666;
-	}
-
-	.no-preview p {
-		margin: 0.5rem 0;
-		text-align: center;
-	}
-
-	.hint {
-		font-size: 0.9rem;
-		color: #999;
 	}
 
 	@media (max-width: 1024px) {
@@ -511,16 +330,13 @@ cylinder(h=20, r=8);
 			grid-template-columns: 1fr;
 			gap: 1rem;
 		}
-
 		.model-container {
 			min-height: 300px;
-			max-height: none; /* Remove height restriction on mobile/tablet */
+			max-height: none;
 		}
 	}
 
 	@media (max-width: 768px) {
-		.container {
-			padding: 0.5rem;
-		}
+		.container { padding: 0.5rem; }
 	}
 </style>

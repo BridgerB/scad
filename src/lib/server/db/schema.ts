@@ -29,6 +29,17 @@ export const scads = pgTable("scads", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const scadFiles = pgTable("scad_files", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  scadId: uuid("scad_id").references(() => scads.id).notNull(),
+  path: text("path").notNull(), // relative, may include folders e.g. "lib/config.scad"
+  content: text("content").notNull(),
+  isEntry: boolean("is_entry").default(false),
+  order: integer("order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const scadPhotos = pgTable("scad_photos", {
   id: uuid("id").defaultRandom().primaryKey(),
   scadId: uuid("scad_id").references(() => scads.id).notNull(),

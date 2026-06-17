@@ -3,7 +3,8 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	
+	import { featured } from '$lib/featured';
+
 	export let data;
 	
 	let searchQuery = $page.url.searchParams.get('search') || '';
@@ -66,6 +67,34 @@
 	</div>
 
 	<div class="cards-grid">
+		{#each featured as item}
+			<div class="card" on:click={() => goto(item.href)}>
+				<div class="model-container">
+					{#if browser}
+						<model-viewer
+							alt="{item.title} 3D Model"
+							src={item.preview}
+							environment-image="/environments/default.hdr"
+							shadow-intensity="1"
+							auto-rotate
+							auto-rotate-delay="0"
+							rotation-per-second="60deg"
+							loading="lazy"
+						></model-viewer>
+					{:else}
+						<div class="no-model">Loading 3D viewer...</div>
+					{/if}
+				</div>
+				<div class="card-content">
+					<h3>{item.title}</h3>
+					<p>{item.description}</p>
+					<div class="card-meta">
+						<span>by {item.username}</span>
+						<span>featured</span>
+					</div>
+				</div>
+			</div>
+		{/each}
 		{#each data.scads as scad}
 			<div class="card" on:click={() => navigateToScad(scad.id)}>
 				<div class="model-container">

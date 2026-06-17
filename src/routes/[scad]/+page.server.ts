@@ -3,13 +3,18 @@ import { scadPhotos, scadRatings, scads, users } from "$lib/server/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { error } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { generateAndUploadGlb } from "$lib/server/glb-upload";
-import { convertScadToGlb } from "$lib/server/openscad/convert";
+import { generateAndUploadGlbFromProject } from "$lib/server/glb-upload";
+import { convertScadProjectToGlb } from "$lib/server/openscad/convert";
+import {
+  entryContent,
+  loadProject,
+  saveProjectFiles,
+  validateProject,
+} from "$lib/server/scad-files";
 
 export const load: PageServerLoad = async ({ params }) => {
   const scadId = params.scad;
 
-  // Get SCAD details with user info
   const scadData = await db
     .select({
       id: scads.id,
@@ -37,7 +42,9 @@ export const load: PageServerLoad = async ({ params }) => {
 
   const scad = scadData[0];
 
-  // Get all photos for this SCAD
+  // Load the project's files (synthesizes a single main.scad for legacy rows).
+  const project = await loadProject(scadId, scad.content ?? "");
+
   const photos = await db
     .select({
       id: scadPhotos.id,
@@ -49,7 +56,6 @@ export const load: PageServerLoad = async ({ params }) => {
     .where(eq(scadPhotos.scadId, scadId))
     .orderBy(scadPhotos.order);
 
-  // Get rating statistics
   const ratingStats = await db
     .select({
       likes: sql<number>`COUNT(CASE WHEN ${scadRatings.rating} = 1 THEN 1 END)`,
@@ -67,41 +73,51 @@ export const load: PageServerLoad = async ({ params }) => {
       ...scad,
       tags: scad.tags ? JSON.parse(scad.tags) : [],
     },
+    project,
     photos,
     stats,
   };
 };
 
+// Parse a project from the form: prefers the `project` JSON field, falls back
+// to a legacy single `scadContent` field.
+function readProject(data: FormData) {
+  const projectJson = data.get("project");
+  if (typeof projectJson === "string" && projectJson.trim()) {
+    return validateProject(JSON.parse(projectJson));
+  }
+  const content = (data.get("scadContent") as string) ?? "";
+  return { files: [{ path: "main.scad", content }], entryPath: "main.scad" };
+}
+
 export const actions: Actions = {
   // Live update action - generates GLB in memory and returns it directly
   updateScad: async ({ request }) => {
     const data = await request.formData();
-    const scadContent = data.get("scadContent") as string;
     const scadId = data.get("scadId") as string;
 
-    if (!scadContent || !scadId) {
+    let project;
+    try {
+      project = readProject(data);
+    } catch (e) {
       return {
         type: "error",
-        error: "No SCAD content or ID provided",
+        error: e instanceof Error ? e.message : "Invalid project",
       };
+    }
+    if (!scadId || !entryContent(project).trim()) {
+      return { type: "error", error: "No SCAD content or ID provided" };
     }
 
     try {
-      // Convert SCAD to GLB in memory only (no file system operations)
-      console.log(`Generating in-memory GLB preview for SCAD ${scadId}...`);
-      const glbBuffer = await convertScadToGlb(scadContent);
-
-      // Convert buffer to base64 for transport
-      const glbBase64 = glbBuffer.toString("base64");
-
-      console.log(
-        `Successfully generated ${glbBuffer.length} byte GLB preview`,
+      const glbBuffer = await convertScadProjectToGlb(
+        project.files,
+        project.entryPath,
       );
-
       return {
         type: "success",
         message: "3D model preview updated",
-        glbData: glbBase64,
+        glbData: glbBuffer.toString("base64"),
         timestamp: Date.now(),
       };
     } catch (error) {
@@ -115,40 +131,45 @@ export const actions: Actions = {
     }
   },
 
-  // Save action - updates database and Firebase Storage
+  // Save action - updates database (scads + scad_files) and Firebase Storage
   saveScad: async ({ request }) => {
     const data = await request.formData();
-    const scadContent = data.get("scadContent") as string;
     const scadId = data.get("scadId") as string;
 
-    if (!scadContent || !scadId) {
+    let project;
+    try {
+      project = readProject(data);
+    } catch (e) {
       return {
         type: "error",
-        data: { error: "No SCAD content or ID provided" },
+        data: { error: e instanceof Error ? e.message : "Invalid project" },
       };
+    }
+    if (!scadId || !entryContent(project).trim()) {
+      return { type: "error", data: { error: "No SCAD content or ID provided" } };
     }
 
     try {
       let newGlbUrl = null;
-
-      // Generate and upload new GLB file to Firebase
       try {
-        console.log(`Saving GLB to Firebase for SCAD ${scadId}...`);
-        newGlbUrl = await generateAndUploadGlb(scadContent);
-        console.log(`Successfully saved new GLB: ${newGlbUrl}`);
+        newGlbUrl = await generateAndUploadGlbFromProject(
+          project.files,
+          project.entryPath,
+        );
       } catch (glbError) {
         console.error(`Failed to generate GLB for SCAD ${scadId}:`, glbError);
-        // Continue with update even if GLB generation fails
       }
 
-      // Update the SCAD content and GLB URL in the database
       await db.update(scads)
         .set({
-          content: scadContent,
-          glbUrl: newGlbUrl, // Update with new GLB URL (or keep existing if generation failed)
+          content: entryContent(project),
+          fileSize: project.files.reduce((n, f) => n + f.content.length, 0),
+          glbUrl: newGlbUrl,
           updatedAt: new Date(),
         })
         .where(eq(scads.id, scadId));
+
+      await saveProjectFiles(scadId, project);
 
       return {
         type: "success",

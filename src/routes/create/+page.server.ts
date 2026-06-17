@@ -2,12 +2,80 @@ import { db } from "$lib/server/db";
 import { scads, users } from "$lib/server/db/schema";
 import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { generateAndUploadGlb } from "$lib/server/glb-upload";
+import { generateAndUploadGlbFromProject } from "$lib/server/glb-upload";
+import {
+  entryContent,
+  projectFromForm,
+  saveProjectFiles,
+} from "$lib/server/scad-files";
+import type { ScadFile } from "$lib/server/openscad/convert";
 import { eq } from "drizzle-orm";
 
-export const load: PageServerLoad = async () => {
-  // No initial data needed for create page
-  return {};
+import { getShape } from "$lib/shapes";
+
+// Featured example sources (server-only), loaded as raw strings at build time.
+import houseMain from "../../../static/models/house_modular/main.scad?raw";
+import houseConfig from "../../../static/models/house_modular/config.scad?raw";
+import houseStructure from "../../../static/models/house_modular/house_structure.scad?raw";
+import houseWindows from "../../../static/models/house_modular/windows.scad?raw";
+import houseDoors from "../../../static/models/house_modular/doors.scad?raw";
+import houseUtilities from "../../../static/models/house_modular/utilities.scad?raw";
+import houseLandscaping from "../../../static/models/house_modular/landscaping.scad?raw";
+import houseFence from "../../../static/models/house_modular/fence.scad?raw";
+
+type FeaturedProject = {
+  files: ScadFile[];
+  entryPath: string;
+  preview: string;
+};
+
+const featuredProjects: Record<string, FeaturedProject> = {
+  "house-modular": {
+    entryPath: "main.scad",
+    preview: "/featured/house.glb",
+    files: [
+      { path: "main.scad", content: houseMain },
+      { path: "config.scad", content: houseConfig },
+      { path: "house_structure.scad", content: houseStructure },
+      { path: "windows.scad", content: houseWindows },
+      { path: "doors.scad", content: houseDoors },
+      { path: "utilities.scad", content: houseUtilities },
+      { path: "landscaping.scad", content: houseLandscaping },
+      { path: "fence.scad", content: houseFence },
+    ],
+  },
+};
+
+const DEFAULT_CODE = `// Start designing! Edit this or add files.
+cylinder(h = 20, r = 8, $fn = 64);
+`;
+
+function oneFile(content: string) {
+  return { files: [{ path: "main.scad", content }], entryPath: "main.scad" };
+}
+
+export const load: PageServerLoad = async ({ url }) => {
+  // Optional ?featured=<id> prefills a multi-file example (home page).
+  const featuredId = url.searchParams.get("featured");
+  const feat = featuredId ? featuredProjects[featuredId] : undefined;
+  if (feat) {
+    return {
+      project: { files: feat.files, entryPath: feat.entryPath },
+      initialPreview: feat.preview,
+    };
+  }
+
+  // Optional ?shape=<id> prefills the editor from the Shapes tab.
+  const shapeId = url.searchParams.get("shape");
+  const shape = shapeId ? getShape(shapeId) : undefined;
+  if (shape) {
+    return {
+      project: oneFile(shape.code),
+      initialPreview: `/shapes/${shape.id}.glb`,
+    };
+  }
+
+  return { project: oneFile(DEFAULT_CODE), initialPreview: null };
 };
 
 export const actions: Actions = {
@@ -17,7 +85,6 @@ export const actions: Actions = {
     const title = (data.get("title") as string)?.trim();
     const username = (data.get("username") as string)?.trim();
     const description = (data.get("description") as string)?.trim();
-    const content = (data.get("content") as string)?.trim();
     const tagsString = (data.get("tags") as string)?.trim();
 
     // Validation
@@ -35,72 +102,66 @@ export const actions: Actions = {
       errors.username = "Name must be 100 characters or less";
     }
 
-    if (!content) {
-      errors.content = "OpenSCAD code is required";
-    } else if (content.length > 100000) {
-      errors.content = "Code must be 100,000 characters or less";
-    }
-
     if (description && description.length > 1000) {
       errors.description = "Description must be 1,000 characters or less";
     }
 
-    if (Object.keys(errors).length > 0) {
+    // Parse + validate the multi-file project.
+    let project;
+    try {
+      project = projectFromForm(data);
+      if (!entryContent(project).trim()) {
+        errors.content = "The entry file is empty";
+      }
+    } catch (e) {
+      errors.content = e instanceof Error ? e.message : "Invalid project";
+    }
+
+    if (Object.keys(errors).length > 0 || !project) {
       return fail(400, { errors });
     }
 
-    // Parse tags
-    let tags: string[] = [];
-    if (tagsString) {
-      tags = tagsString
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0)
-        .slice(0, 10); // Limit to 10 tags
-    }
-
     try {
-      // Generate a unique ID for the SCAD
       const scadId = crypto.randomUUID();
 
       // Create or find user (simplified approach for now)
       let userId: string;
       const email = `${username.toLowerCase().replace(/\s+/g, "")}@example.com`;
-
-      // Check if user already exists
       const existingUsers = await db
         .select({ id: users.id })
         .from(users)
         .where(eq(users.email, email))
         .limit(1);
-
       if (existingUsers.length > 0) {
         userId = existingUsers[0].id;
       } else {
-        // Create new user
-        const [newUser] = await db.insert(users).values({
-          username,
-          email,
-        }).returning({ id: users.id });
+        const [newUser] = await db.insert(users).values({ username, email })
+          .returning({ id: users.id });
         userId = newUser.id;
       }
 
-      let glbUrl: string | null = null;
-
-      // Generate and upload GLB file to Firebase
-      try {
-        console.log(`Generating GLB for new SCAD ${scadId}...`);
-        glbUrl = await generateAndUploadGlb(content);
-        console.log(`Successfully generated GLB: ${glbUrl}`);
-      } catch (glbError) {
-        console.error(
-          `Failed to generate GLB for new SCAD ${scadId}:`,
-          glbError,
-        );
-        // Continue with creation even if GLB generation fails
+      // Parse tags
+      let tags: string[] = [];
+      if (tagsString) {
+        tags = tagsString.split(",").map((t) => t.trim()).filter((t) =>
+          t.length > 0
+        ).slice(0, 10);
       }
 
-      // Insert the new SCAD into the database
+      // Generate and upload GLB from the project.
+      let glbUrl: string | null = null;
+      try {
+        glbUrl = await generateAndUploadGlbFromProject(
+          project.files,
+          project.entryPath,
+        );
+      } catch (glbError) {
+        console.error(`Failed to generate GLB for new SCAD ${scadId}:`, glbError);
+      }
+
+      const content = entryContent(project);
+      const totalSize = project.files.reduce((n, f) => n + f.content.length, 0);
+
       const [newScad] = await db.insert(scads).values({
         id: scadId,
         title,
@@ -109,22 +170,22 @@ export const actions: Actions = {
         userId,
         tags: tags.length > 0 ? JSON.stringify(tags) : null,
         downloadCount: 0,
-        fileSize: content.length,
+        fileSize: totalSize,
         isPublic: true,
         glbUrl,
         createdAt: new Date(),
         updatedAt: new Date(),
       }).returning({ id: scads.id });
 
-      // Success - redirect to the new SCAD page
+      await saveProjectFiles(newScad.id, project);
+
       throw redirect(303, `/${newScad.id}`);
     } catch (error) {
-      // Check if this is actually a redirect (which is expected)
       if (
         error && typeof error === "object" && "status" in error &&
         error.status === 303
       ) {
-        throw error; // Re-throw redirect - this is the expected behavior
+        throw error;
       }
       console.error("Error creating SCAD:", error);
       return fail(500, {
